@@ -1414,7 +1414,17 @@ const App = (() => {
     if (!session.active) return;
     clearInterval(session.timerRef);
 
-    // Capture final per-question data
+    // Adjust for pause FIRST, before capturing final question data
+    if (session.paused) {
+      const pausedDuration = Date.now() - session.pausedAt;
+      session.startTime += pausedDuration;
+      if (session.mode === 'perQuestion' && session.currentQuestionStart) {
+        session.currentQuestionStart += pausedDuration;
+      }
+      session.paused = false;
+    }
+
+    // Capture final per-question data (now pause-adjusted)
     if (session.mode === 'perQuestion' && session.currentQuestionStart) {
       const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
       if (qTime > 0) {
@@ -1422,13 +1432,6 @@ const App = (() => {
       }
     }
 
-    // Recompute final elapsed accounting for pauses
-    if (session.paused) {
-      // If ending while paused, account for the paused time
-      const pausedDuration = Date.now() - session.pausedAt;
-      session.startTime += pausedDuration;
-      session.paused = false;
-    }
     const finalElapsed = Math.floor((Date.now() - session.startTime) / 1000);
     document.getElementById('sessionOverlay').classList.remove('active');
     document.getElementById('perQuestionPanel').style.display = 'none';
@@ -1537,7 +1540,7 @@ const App = (() => {
   }
 
   function nextQuestion() {
-    if (!session.active || session.mode !== 'perQuestion') return;
+    if (!session.active || session.paused || session.mode !== 'perQuestion') return;
     const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
     session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: false });
     session.currentQuestionStart = Date.now();
@@ -1547,7 +1550,7 @@ const App = (() => {
   }
 
   function skipQuestion() {
-    if (!session.active || session.mode !== 'perQuestion') return;
+    if (!session.active || session.paused || session.mode !== 'perQuestion') return;
     const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
     session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: true });
     session.currentQuestionStart = Date.now();

@@ -855,6 +855,7 @@ input, textarea, select { font-family: var(--font-body); }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
   transition: background var(--transition), border-color var(--transition), transform var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }
@@ -1496,6 +1497,7 @@ input, textarea, select { font-family: var(--font-body); }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
   transition: background var(--transition), border-color var(--transition), transform var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }
@@ -1980,7 +1982,7 @@ input, textarea, select { font-family: var(--font-body); }
 .csv-task-list { border-top: 1px solid var(--border); }
 .csv-task-item { display: flex; align-items: center; padding: 12px 14px; gap: 10px; min-height: 44px; border-bottom: 1px solid var(--border); }
 .csv-task-item:last-child { border-bottom: none; }
-.csv-task-check { width: 20px; height: 20px; min-width: 20px; min-height: 20px; border-radius: 5px; border: 1.5px solid var(--border-mid); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background var(--transition), border-color var(--transition); }
+.csv-task-check { width: 20px; height: 20px; min-width: 20px; min-height: 20px; border-radius: 5px; border: 1.5px solid var(--border-mid); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: background var(--transition), border-color var(--transition); }
 .csv-task-check.checked { background: var(--emerald); border-color: var(--emerald); }
 .csv-task-info { flex: 1; min-width: 0; }
 .csv-task-subj { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); line-height: 1.4; }
