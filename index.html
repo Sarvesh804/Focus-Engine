@@ -390,16 +390,9 @@
         </div>
       </div>
 
-      <!-- PWA Install -->
+      <!-- App -->
       <div class="settings-group">
         <div class="settings-group-label">App</div>
-        <div class="setting-row">
-          <div class="setting-label-wrap">
-            <div class="setting-label">Install to Home Screen</div>
-            <div class="setting-desc">Add as PWA for offline use</div>
-          </div>
-          <button class="btn-secondary" style="height:36px;padding:0 14px;font-size:12px;" id="btnInstall">Install</button>
-        </div>
         <div class="setting-row">
           <div class="setting-label-wrap">
             <div class="setting-label">Clear Local Data</div>
@@ -467,20 +460,22 @@
     <div class="session-status" id="sessionStatus">RUNNING</div>
   </div>
 
-  <div class="session-controls">
-    <button class="btn-session-end" id="btnEndSession">End Session</button>
-    <button class="btn-session-pause" id="btnPauseSession">Pause</button>
-  </div>
-
-  <!-- Per-question controls (hidden by default) -->
-  <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;">Question <span id="questionNumber">1</span></div>
-      <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--indigo);" id="questionTimer">00:00</div>
-    </div>
+  <div class="session-bottom">
     <div class="session-controls">
-      <button class="btn-session-end" id="btnSkipQuestion" style="font-size:13px;">Skip</button>
-      <button class="btn-session-pause" id="btnNextQuestion" style="font-size:13px;">Next Question</button>
+      <button class="btn-session-end" id="btnEndSession">End Session</button>
+      <button class="btn-session-pause" id="btnPauseSession">Pause</button>
+    </div>
+
+    <!-- Per-question controls (hidden by default) -->
+    <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;">Question <span id="questionNumber">1</span></div>
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--indigo);" id="questionTimer">00:00</div>
+      </div>
+      <div class="session-controls">
+        <button class="btn-session-end" id="btnSkipQuestion" style="font-size:13px;">Skip</button>
+        <button class="btn-session-pause" id="btnNextQuestion" style="font-size:13px;">Next Question</button>
+      </div>
     </div>
   </div>
 </div>

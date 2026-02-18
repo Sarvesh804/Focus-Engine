@@ -188,11 +188,14 @@ input, textarea, select { font-family: var(--font-body); }
 
 .home-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
 }
 
-.greeting-block { flex: 1; }
+.greeting-block {
+  flex: 1;
+  text-align: center;
+}
 
 .greeting-label {
   font-size: 12px;
@@ -672,6 +675,13 @@ input, textarea, select { font-family: var(--font-body); }
   gap: 16px;
   width: 100%;
   justify-content: center;
+}
+
+.session-bottom {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .btn-session-end {
@@ -1392,13 +1402,13 @@ input, textarea, select { font-family: var(--font-body); }
 
 .personal-options-row {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   padding: 0 16px 14px;
 }
 
 .personal-option-group {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 .personal-option-label {
@@ -1413,8 +1423,9 @@ input, textarea, select { font-family: var(--font-body); }
 
 .personal-chips {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .personal-chip {
@@ -2066,3 +2077,14 @@ input, textarea, select { font-family: var(--font-body); }
   from { opacity: 0; transform: translateY(8px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* Additional polish — subtle refinements */
+.settings-group { transition: border-color var(--transition); }
+.toggle { transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.toggle::after { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.personal-chip { transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.12s ease; }
+.metric-card { transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease; }
+.stat-chip { transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease; }
+.encourage-card { transition: border-color 0.3s ease; }
+.ring-value { transition: color 0.3s ease; }
+.theme-chip { transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
