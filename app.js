@@ -1310,6 +1310,9 @@ const App = (() => {
     } else {
       const pausedDuration = Date.now() - session.pausedAt;
       session.startTime += pausedDuration;
+      if (session.mode === 'perQuestion' && session.currentQuestionStart) {
+        session.currentQuestionStart += pausedDuration;
+      }
       session.paused   = false;
       session.pausedAt = null;
       document.getElementById('btnPauseSession').textContent = 'Pause';
@@ -1897,6 +1900,7 @@ const App = (() => {
     state.tasks = []; 
     state.sessions = [];
     state.personalTasks = [];
+    state.questionAnalytics = [];
     DB.save();
     renderHome(); 
     renderPlan(); 
