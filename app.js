@@ -473,6 +473,11 @@ const App = (() => {
     return `${y}-${m}-${d}`;
   }
 
+  function parseLocalDate(dateStr) {
+    if (!dateStr) return new Date();
+    return new Date(dateStr + 'T00:00:00');
+  }
+
   function fmtTime(secs) {
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
@@ -1003,7 +1008,7 @@ const App = (() => {
     });
 
     list.innerHTML = sorted.map(task => {
-      const dateLabel = task.date ? new Date(task.date + 'T00:00:00').toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
+      const dateLabel = task.date ? parseLocalDate(task.date).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
       return `<div class="personal-item ${task.completed ? 'completed' : ''}">
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
           ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
@@ -1400,7 +1405,14 @@ const App = (() => {
       }
     }
 
-    const finalElapsed = session.elapsed;
+    // Recompute final elapsed accounting for pauses
+    if (session.paused) {
+      // If ending while paused, account for the paused time
+      const pausedDuration = Date.now() - session.pausedAt;
+      session.startTime += pausedDuration;
+      session.paused = false;
+    }
+    const finalElapsed = Math.floor((Date.now() - session.startTime) / 1000);
     document.getElementById('sessionOverlay').classList.remove('active');
     document.getElementById('perQuestionPanel').style.display = 'none';
 
@@ -1933,9 +1945,6 @@ const App = (() => {
       showSupabaseStatus(`Connection failed: ${initResult.error}`, 'error');
       return;
     }
-
-    state.settings.supabase = { url: SUPABASE_URL, key: SUPABASE_KEY };
-    DB.save();
 
     showSupabaseStatus('Connected! Syncing data...', 'info');
 
