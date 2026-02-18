@@ -1009,11 +1009,17 @@ const App = (() => {
 
     list.innerHTML = sorted.map(task => {
       const dateLabel = task.date ? parseLocalDate(task.date).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
+      const freq = task.frequency || 'once';
+      const prio = task.priority || 'none';
+      const freqBadge = freq !== 'once' ? `<span class="personal-frequency-badge">${freq === 'daily' ? 'Daily' : 'Weekly'}</span>` : '';
+      const prioDot = prio !== 'none' ? `<div class="personal-priority-dot ${prio}" title="${prio} priority"></div>` : '';
       return `<div class="personal-item ${task.completed ? 'completed' : ''}">
+        ${prioDot}
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
           ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
         </div>
         <div class="personal-text ${task.completed ? 'done' : ''}">${task.text}</div>
+        ${freqBadge}
         ${dateLabel ? `<div class="personal-date">${dateLabel}</div>` : ''}
         <button class="personal-delete" onclick="App.deletePersonalTask('${task.id}')">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1805,12 +1811,19 @@ const App = (() => {
     
     if (!text) return;
 
+    const freqChip = document.querySelector('#personalFrequencyChips .personal-chip.active');
+    const prioChip = document.querySelector('#personalPriorityChips .personal-chip.active');
+    const frequency = freqChip ? freqChip.dataset.frequency : 'once';
+    const priority = prioChip ? prioChip.dataset.priority : 'none';
+
     const task = {
       id: uid(),
       text,
       completed: false,
       date: todayStr(),
       created_at: new Date().toISOString(),
+      frequency,
+      priority,
     };
 
     state.personalTasks.push(task);
@@ -1818,6 +1831,9 @@ const App = (() => {
     Supa.insertPersonalTask(task);
     
     input.value = '';
+    // Reset chips to defaults
+    document.querySelectorAll('#personalFrequencyChips .personal-chip').forEach(c => c.classList.toggle('active', c.dataset.frequency === 'once'));
+    document.querySelectorAll('#personalPriorityChips .personal-chip').forEach(c => c.classList.toggle('active', c.dataset.priority === 'none'));
     renderPersonal();
     toast('Personal task added');
   }
@@ -1827,6 +1843,34 @@ const App = (() => {
     if (!task) return;
     
     task.completed = !task.completed;
+
+    // Handle recurrence: when completing a recurring task, schedule next occurrence
+    if (task.completed && task.frequency && task.frequency !== 'once') {
+      const now = new Date();
+      let nextDate;
+      if (task.frequency === 'daily') {
+        nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      } else if (task.frequency === 'weekly') {
+        nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+      }
+      if (nextDate) {
+        const y = nextDate.getFullYear();
+        const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const d = String(nextDate.getDate()).padStart(2, '0');
+        const newTask = {
+          id: uid(),
+          text: task.text,
+          completed: false,
+          date: `${y}-${m}-${d}`,
+          created_at: new Date().toISOString(),
+          frequency: task.frequency,
+          priority: task.priority || 'none',
+        };
+        state.personalTasks.push(newTask);
+        Supa.insertPersonalTask(newTask);
+      }
+    }
+
     DB.save();
     Supa.updatePersonalTask(id, { completed: task.completed });
     renderPersonal();
@@ -2040,18 +2084,7 @@ const App = (() => {
       openSheet('sheetAddDay');
     });
 
-    // FIXED: Home tab plus button
-    document.getElementById('btnDayLabel').addEventListener('click', () => {
-      const today = todayStr();
-      const todayDay = state.days.find(d => d.date === today);
-      if (todayDay) {
-        toast('Today\'s plan is already set', 'info');
-      } else {
-        document.getElementById('inputDayDate').value = today;
-        openSheet('sheetAddDay');
-      }
-    });
-
+    // CSV import button
     document.getElementById('btnImportCSV').addEventListener('click', () => {
       document.getElementById('csvFileInput').click();
     });
@@ -2064,6 +2097,20 @@ const App = (() => {
     document.getElementById('btnAddPersonal').addEventListener('click', addPersonalTask);
     document.getElementById('personalInput').addEventListener('keypress', e => {
       if (e.key === 'Enter') addPersonalTask();
+    });
+
+    // Personal task frequency/priority chip selectors
+    document.querySelectorAll('#personalFrequencyChips .personal-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#personalFrequencyChips .personal-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+    document.querySelectorAll('#personalPriorityChips .personal-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#personalPriorityChips .personal-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
     });
 
     document.getElementById('btnInstall').addEventListener('click', handleInstall);
