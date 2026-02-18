@@ -492,10 +492,17 @@ const App = (() => {
     return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
   }
 
+  function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   function toast(msg, type='') {
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.innerHTML = `<span>${msg}</span>`;
+    const span = document.createElement('span');
+    span.textContent = msg;
+    el.appendChild(span);
     document.getElementById('toast-container').appendChild(el);
     setTimeout(() => { 
       el.style.opacity='0'; 
@@ -635,7 +642,7 @@ const App = (() => {
 
     list.innerHTML = Object.entries(subjectMap).map(([subj, data]) => {
       const color = SUBJECT_COLORS[subj] || SUBJECT_COLORS.Other;
-      const topics = data.tasks.map(t => t.topic).join(', ');
+      const topics = data.tasks.map(t => esc(t.topic)).join(', ');
       const remaining = data.total - data.done;
       const pct = data.total > 0 ? (data.done / data.total) * 100 : 0;
       const allDone = remaining <= 0;
@@ -694,9 +701,9 @@ const App = (() => {
 
       return `<div class="day-card${expandedDays.has(day.id) ? ' expanded' : ''}" id="daycard-${day.id}">
         <div class="day-card-header" onclick="App.toggleDayCard('${day.id}')">
-          <div class="day-number-badge">${day.label || `Day ${idx+1}`}</div>
+          <div class="day-number-badge">${esc(day.label) || `Day ${idx+1}`}</div>
           <div class="day-info">
-            <div class="day-label" contenteditable="false" data-day-id="${day.id}" data-field="label">${day.label}${today ? ' <span class="badge badge-indigo">Today</span>' : ''}</div>
+            <div class="day-label" contenteditable="false" data-day-id="${day.id}" data-field="label">${esc(day.label)}${today ? ' <span class="badge badge-indigo">Today</span>' : ''}</div>
             <div class="day-meta">${day.date || 'No date'} · ${tasks.length} tasks · ${done}/${tasks.length} done</div>
           </div>
           <div class="day-actions" onclick="event.stopPropagation()">
@@ -729,7 +736,7 @@ const App = (() => {
       </div>
       <div class="task-info">
         <div class="task-subject" style="color:${color}">${task.subject}</div>
-        <div class="task-topic" contenteditable="false" data-field="topic">${task.topic}</div>
+        <div class="task-topic" contenteditable="false" data-field="topic">${esc(task.topic)}</div>
       </div>
       <div class="task-time" contenteditable="false" data-field="minutes">${fmtMins(task.estimated_minutes || 0)}</div>
       <div class="task-actions">
@@ -792,8 +799,8 @@ const App = (() => {
         <div class="pending-dot" style="background:${color}"></div>
         <div class="pending-info">
           <div class="pending-subject" style="color:${color}">${t.subject}</div>
-          <div class="pending-topic">${t.topic}</div>
-          <div class="pending-origin">From ${day ? day.label : 'Unknown'}</div>
+          <div class="pending-topic">${esc(t.topic)}</div>
+          <div class="pending-origin">From ${day ? esc(day.label) : 'Unknown'}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <div class="pending-time">${fmtMins(t.estimated_minutes || 0)}</div>
@@ -968,8 +975,8 @@ const App = (() => {
     const enc = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
     document.getElementById('encourageText').textContent = enc;
 
-    const from = new Date(last7[0]).toLocaleDateString('en-IN', {day:'numeric',month:'short'});
-    const to   = new Date(last7[6]).toLocaleDateString('en-IN', {day:'numeric',month:'short'});
+    const from = parseLocalDate(last7[0]).toLocaleDateString('en-IN', {day:'numeric',month:'short'});
+    const to   = parseLocalDate(last7[6]).toLocaleDateString('en-IN', {day:'numeric',month:'short'});
     document.getElementById('progressRange').textContent = `${from} – ${to}`;
   }
 
@@ -1026,7 +1033,7 @@ const App = (() => {
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
           ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
         </div>
-        <div class="personal-text ${task.completed ? 'done' : ''}">${task.text}</div>
+        <div class="personal-text ${task.completed ? 'done' : ''}">${esc(task.text)}</div>
         ${freqBadge}
         ${dateLabel ? `<div class="personal-date">${dateLabel}</div>` : ''}
         <button class="personal-delete" onclick="App.deletePersonalTask('${task.id}')">
@@ -1147,6 +1154,10 @@ const App = (() => {
       const mMatch = minsText.match(/(\d+)m/);
       if (hMatch) newMins += parseInt(hMatch[1]) * 60;
       if (mMatch) newMins += parseInt(mMatch[1]);
+      if (!hMatch && !mMatch) {
+        const plain = parseInt(minsText);
+        if (!isNaN(plain) && plain > 0) newMins = plain;
+      }
       
       if (!newTopic || newMins <= 0) {
         toast('Invalid task data', 'error');
@@ -1271,7 +1282,7 @@ const App = (() => {
     container.innerHTML = state.days.map(day => {
       return `<div class="session-pick-item" onclick="App.reassignTask('${day.id}')">
         <div class="pick-info">
-          <div class="pick-subj">${day.label}</div>
+          <div class="pick-subj">${esc(day.label)}</div>
           <div style="font-size:12px;color:var(--text-3)">${day.date || 'No date'}</div>
         </div>
       </div>`;
@@ -1322,8 +1333,8 @@ const App = (() => {
         <div class="pick-dot" style="background:${color}"></div>
         <div class="pick-info">
           <div class="pick-subj" style="color:${color}">${t.subject}</div>
-          <div class="pick-topic">${t.topic}</div>
-          ${day && day.date !== today ? `<div style="font-size:11px;color:var(--text-3)">From ${day.label}</div>` : ''}
+          <div class="pick-topic">${esc(t.topic)}</div>
+          ${day && day.date !== today ? `<div style="font-size:11px;color:var(--text-3)">From ${esc(day.label)}</div>` : ''}
         </div>
         <div class="pick-time">${fmtMins(t.estimated_minutes||0)}</div>
       </div>`;
@@ -1703,7 +1714,7 @@ const App = (() => {
           <div class="csv-day-check ${dayChecked ? 'checked' : ''}" data-day-check="${dayIdx}">
             ${dayChecked ? checkSvg12 : ''}
           </div>
-          <div class="csv-day-label">${dayKey}</div>
+          <div class="csv-day-label">${esc(dayKey)}</div>
           <input type="date" class="csv-day-date-input" data-day-date="${dayIdx}" value="${sel.date}" onclick="event.stopPropagation()" onchange="App.updateCSVDayDate(${dayIdx}, this.value)">
         </div>
         <div class="csv-task-list">
@@ -1715,8 +1726,8 @@ const App = (() => {
                 ${taskChecked ? checkSvg10 : ''}
               </div>
               <div class="csv-task-info">
-                <div class="csv-task-subj" style="color:${color}">${row.subject.trim()}</div>
-                <div class="csv-task-topic">${row.topic.trim()}</div>
+                <div class="csv-task-subj" style="color:${color}">${esc(row.subject.trim())}</div>
+                <div class="csv-task-topic">${esc(row.topic.trim())}</div>
               </div>
               <div class="csv-task-mins">${row.estimated_minutes}m</div>
             </div>`;
