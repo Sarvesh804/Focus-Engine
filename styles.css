@@ -1968,7 +1968,7 @@ input, textarea, select { font-family: var(--font-body); }
 .loading { animation: pulse 1.5s ease infinite; }
 
 /* ─── CSV Import Selection ─────────────────── */
-.csv-import-sheet { max-height: 85vh; overflow-y: auto; }
+.csv-import-sheet { max-height: 85vh; }
 .csv-day-group { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: visible; }
 .csv-day-header { display: flex; align-items: center; padding: 14px 14px; gap: 10px; min-height: 48px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .csv-day-header:active { background: var(--card-hover); }
