@@ -2023,7 +2023,10 @@ const App = (() => {
     history.pushState(null, '', location.href);
     window.addEventListener('popstate', function(e) {
       history.pushState(null, '', location.href);
-      if (session.active) return;
+      if (session.active) {
+        toast('End the session before navigating', '');
+        return;
+      }
       const openSheetEl = document.querySelector('.bottom-sheet.active');
       if (openSheetEl) {
         closeSheet();
@@ -2033,6 +2036,21 @@ const App = (() => {
       if (activeTab && activeTab.id !== 'tab-home') {
         const homeBtn = document.querySelector('.nav-item[data-tab="home"]');
         switchTab('home', homeBtn);
+      }
+    });
+
+    // Keyboard accessibility
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const summary = document.getElementById('sessionSummaryOverlay');
+        if (summary && summary.classList.contains('active')) {
+          closeSummary();
+          return;
+        }
+        const openSheetEl = document.querySelector('.bottom-sheet.active');
+        if (openSheetEl) {
+          closeSheet();
+        }
       }
     });
 
