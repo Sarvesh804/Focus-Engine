@@ -178,11 +178,7 @@ const App = (() => {
     }
   };
 
-  // ─── Constants: Supabase ────────────────────────────────────────────────
-  const SUPABASE_URL = 'https://vfgcmesgcfbmokmaseht.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_rxg1Jo-WFkLJt21207wv3w_04eGdsGZ';
-
-  // ─── Supabase Integration ─────────────────────────────────────────────
+  // ─── Supabase Integration (FIXED: Structured Results) ─────────────────
   
   const Supa = {
     client: null,
@@ -542,21 +538,47 @@ const App = (() => {
     const now = new Date();
     const h = now.getHours(), m = now.getMinutes();
 
-    const timeEl = document.getElementById('liveTime');
-    if (timeEl) timeEl.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    document.getElementById('liveTime').textContent =
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 
-    const dateEl = document.getElementById('liveDate');
-    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+    document.getElementById('liveDate').textContent =
+      now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+
+    const name = state.settings.userName;
+    const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    document.getElementById('greeting').textContent = name ? `${g}, ${name}` : g;
+
+    const [eh, em] = (state.settings.dayEndTime || '23:00').split(':').map(Number);
+    const [sh, sm] = (state.settings.dayStartTime || '06:00').split(':').map(Number);
+    const endSecs   = eh * 3600 + em * 60;
+    const startSecs = sh * 3600 + sm * 60;
+    const nowSecs   = h * 3600 + m * 60 + now.getSeconds();
+
+    let remaining = endSecs - nowSecs;
+    if (remaining < 0) remaining = 0;
+
+    const totalDay = endSecs - startSecs;
+    const progress = Math.max(0, Math.min(1, 1 - remaining / totalDay));
+
+    const circumference = 2 * Math.PI * 74;
+    const ring = document.getElementById('ringProgress');
+    ring.setAttribute('stroke-dasharray', circumference);
+    ring.setAttribute('stroke-dashoffset', circumference * (1 - progress));
+
+    const hue = Math.round(240 - progress * 160);
+    ring.style.stroke = `hsl(${hue}, 80%, 65%)`;
+
+    const remH = Math.floor(remaining / 3600);
+    const remM = Math.floor((remaining % 3600) / 60);
+    document.getElementById('ringValue').textContent = `${remH}h ${remM}m`;
+    document.getElementById('ringEnd').textContent = `ends at ${state.settings.dayEndTime}`;
   }
 
   // ─── Motivational Quote Engine ─────────────────────────────────────────
   
   function loadRandomQuote() {
-    const el = document.getElementById('quoteText');
-    if (el) {
-      const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-      el.textContent = quote;
-    }
+    const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+    document.getElementById('quoteText').textContent = quote;
   }
 
   // ─── Home Rendering ────────────────────────────────────────────────────
@@ -835,54 +857,29 @@ const App = (() => {
         }).join('');
     }
 
-    // Render subject analytics with topic-level breakdown
+    // Render subject analytics
     const analyticsEl = document.getElementById('subjectAnalytics');
     if (analyticsEl) {
       if (state.questionAnalytics.length === 0) {
         analyticsEl.innerHTML = '<div style="font-size:13px;color:var(--text-3);text-align:center;padding:10px 0">No per-question data yet</div>';
       } else {
-        // Build subject -> topic hierarchy with accumulated stats
         const subjData = {};
         state.questionAnalytics.forEach(qa => {
-          if (!subjData[qa.subject]) subjData[qa.subject] = { totalQ: 0, totalSecs: 0, sessions: 0, topics: {} };
+          if (!subjData[qa.subject]) subjData[qa.subject] = { totalQ: 0, totalSecs: 0, sessions: 0 };
           subjData[qa.subject].totalQ += qa.questions.length;
           subjData[qa.subject].totalSecs += qa.questions.reduce((a, q) => a + q.seconds, 0);
           subjData[qa.subject].sessions++;
-
-          // Accumulate topic-wise stats
-          const topicKey = (qa.topic || 'General').trim();
-          if (!subjData[qa.subject].topics[topicKey]) {
-            subjData[qa.subject].topics[topicKey] = { totalQ: 0, totalSecs: 0, sessions: 0, dates: [] };
-          }
-          subjData[qa.subject].topics[topicKey].totalQ += qa.questions.length;
-          subjData[qa.subject].topics[topicKey].totalSecs += qa.questions.reduce((a, q) => a + q.seconds, 0);
-          subjData[qa.subject].topics[topicKey].sessions++;
-          if (qa.date && !subjData[qa.subject].topics[topicKey].dates.includes(qa.date)) {
-            subjData[qa.subject].topics[topicKey].dates.push(qa.date);
-          }
         });
 
-        analyticsEl.innerHTML = `<div class="subject-analytics-buttons">
-          ${Object.entries(subjData).map(([subj, data]) => {
-            const color = SUBJECT_COLORS[subj] || SUBJECT_COLORS.Other;
-            const safeKey = encodeURIComponent(subj).replace(/[^a-zA-Z0-9]/g, '_');
-            return `<button class="subject-analytics-btn" style="--sa-color:${color}" onclick="App.toggleSubjectAnalytics('${safeKey}')">
-              <span class="sa-btn-dot" style="background:${color}"></span>
-              <span class="sa-btn-label">${subj}</span>
-              <span class="sa-btn-count">${data.totalQ} Q</span>
-            </button>`;
-          }).join('')}
-        </div>
-        ${Object.entries(subjData).map(([subj, data]) => {
+        analyticsEl.innerHTML = Object.entries(subjData).map(([subj, data]) => {
           const color = SUBJECT_COLORS[subj] || SUBJECT_COLORS.Other;
           const avgPerQ = data.totalQ > 0 ? Math.round(data.totalSecs / data.totalQ) : 0;
           const safeKey = encodeURIComponent(subj).replace(/[^a-zA-Z0-9]/g, '_');
-          const topicEntries = Object.entries(data.topics);
           return `<div class="subject-analytics-card" id="sa-${safeKey}">
-            <div class="subject-analytics-header">
+            <div class="subject-analytics-header" onclick="App.toggleSubjectAnalytics('${safeKey}')">
               <div class="subject-analytics-dot" style="background:${color}"></div>
               <div class="subject-analytics-name">${subj}</div>
-              <div class="subject-analytics-summary">${data.totalQ} Q · ${fmtTime(avgPerQ)} avg</div>
+              <svg class="subject-analytics-chevron" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
             </div>
             <div class="subject-analytics-body">
               <div class="analytics-metric-row">
@@ -897,40 +894,9 @@ const App = (() => {
                 <div class="analytics-metric-label">Sessions</div>
                 <div class="analytics-metric-value">${data.sessions}</div>
               </div>
-              ${topicEntries.length > 0 ? `
-              <div class="analytics-topics-title">Topics</div>
-              ${topicEntries.map(([topic, td]) => {
-                const topicAvg = td.totalQ > 0 ? Math.round(td.totalSecs / td.totalQ) : 0;
-                const topicSafeKey = safeKey + '_' + encodeURIComponent(topic).replace(/[^a-zA-Z0-9]/g, '_');
-                return `<div class="analytics-topic-card" id="sat-${topicSafeKey}">
-                  <div class="analytics-topic-header" onclick="App.toggleTopicAnalytics('${topicSafeKey}')">
-                    <span class="analytics-topic-name">${topic}</span>
-                    <span class="analytics-topic-badge">${td.totalQ} Q</span>
-                    <svg class="analytics-topic-chevron" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
-                  </div>
-                  <div class="analytics-topic-body">
-                    <div class="analytics-metric-row">
-                      <div class="analytics-metric-label">Questions</div>
-                      <div class="analytics-metric-value">${td.totalQ}</div>
-                    </div>
-                    <div class="analytics-metric-row">
-                      <div class="analytics-metric-label">Avg Time / Q</div>
-                      <div class="analytics-metric-value">${fmtTime(topicAvg)}</div>
-                    </div>
-                    <div class="analytics-metric-row">
-                      <div class="analytics-metric-label">Sessions</div>
-                      <div class="analytics-metric-value">${td.sessions}</div>
-                    </div>
-                    <div class="analytics-metric-row">
-                      <div class="analytics-metric-label">Days Practiced</div>
-                      <div class="analytics-metric-value">${td.dates.length}</div>
-                    </div>
-                  </div>
-                </div>`;
-              }).join('')}` : ''}
             </div>
           </div>`;
-        }).join('')}`;
+        }).join('');
       }
     }
 
@@ -949,95 +915,37 @@ const App = (() => {
     if (card) card.classList.toggle('expanded');
   }
 
-  function toggleTopicAnalytics(topicKey) {
-    const card = document.getElementById(`sat-${topicKey}`);
-    if (card) card.classList.toggle('expanded');
-  }
-
   // ─── Personal Tasks Rendering ──────────────────────────────────────────
   
-  let personalFilter = 'all';
-
-  function filterPersonalTasks(filter, btn) {
-    personalFilter = filter;
-    document.querySelectorAll('.personal-filter-btn').forEach(b => {
-      b.classList.remove('active');
-      b.setAttribute('aria-pressed', 'false');
-    });
-    if (btn) {
-      btn.classList.add('active');
-      btn.setAttribute('aria-pressed', 'true');
-    }
-    renderPersonal();
-  }
-
   function renderPersonal() {
     const list = document.getElementById('personalList');
     
-    let tasks = state.personalTasks;
-    if (personalFilter === 'active') tasks = tasks.filter(t => !t.completed);
-    if (personalFilter === 'completed') tasks = tasks.filter(t => t.completed);
-
-    // Sort: high priority first, then by due date (earliest first), then by creation date
-    tasks = [...tasks].sort((a, b) => {
-      const priorityOrder = { high: 0, normal: 1, low: 2 };
-      const pa = priorityOrder[a.priority || 'normal'] || 1;
-      const pb = priorityOrder[b.priority || 'normal'] || 1;
-      if (pa !== pb) return pa - pb;
-      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return 0;
-    });
-
-    if (tasks.length === 0) {
-      const msg = personalFilter === 'all' ? 'No personal tasks' : personalFilter === 'active' ? 'No active tasks' : 'No completed tasks';
+    if (state.personalTasks.length === 0) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-icon">
           <svg width="24" height="24" fill="none" stroke="#5a5a7a" stroke-width="1.5" viewBox="0 0 24 24">
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
         </div>
-        <div class="empty-title">${msg}</div>
+        <div class="empty-title">No personal tasks</div>
         <div class="empty-sub">Add quick notes and to-dos here.</div>
       </div>`;
       return;
     }
 
-    list.innerHTML = tasks.map(task => {
-      const priorityClass = task.priority === 'high' ? 'priority-high' : task.priority === 'low' ? 'priority-low' : '';
-      const dueDateStr = task.dueDate ? formatDueDate(task.dueDate) : '';
-      const isOverdue = task.dueDate && !task.completed && task.dueDate < todayStr();
-      return `<div class="personal-item ${priorityClass}">
+    list.innerHTML = state.personalTasks.map(task => `
+      <div class="personal-item">
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
           ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
         </div>
-        <div class="personal-info-col">
-          <div class="personal-text ${task.completed ? 'done' : ''}">${task.text}</div>
-          <div class="personal-meta">
-            ${task.priority === 'high' ? '<span class="personal-badge badge-high">High</span>' : ''}
-            ${task.priority === 'low' ? '<span class="personal-badge badge-low">Low</span>' : ''}
-            ${dueDateStr ? `<span class="personal-due ${isOverdue ? 'overdue' : ''}">${dueDateStr}</span>` : ''}
-          </div>
-        </div>
+        <div class="personal-text ${task.completed ? 'done' : ''}">${task.text}</div>
         <button class="personal-delete" onclick="App.deletePersonalTask('${task.id}')">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
           </svg>
         </button>
-      </div>`;
-    }).join('');
-  }
-
-  function formatDueDate(dateStr) {
-    const today = todayStr();
-    if (dateStr === today) return 'Today';
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
-    if (dateStr === tomorrowStr) return 'Tomorrow';
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      </div>
+    `).join('');
   }
 
   // ─── Settings Rendering ────────────────────────────────────────────────
@@ -1059,6 +967,9 @@ const App = (() => {
     document.querySelectorAll('.theme-chip').forEach(c => {
       c.classList.toggle('active', c.dataset.theme === state.settings.theme);
     });
+
+    const sc = state.settings.supabase || {};
+    if (sc.url) document.getElementById('sbUrl').value = sc.url;
   }
 
   function setToggleState(id, on) {
@@ -1661,21 +1572,20 @@ const App = (() => {
       const d = String(localDate.getDate()).padStart(2, '0');
       const dateStr = `${y}-${m}-${d}`;
       const tasks = dayGroups[dayKey];
-      const safeKey = `csvday-${i}`;
 
-      return `<div class="csv-day-group" data-day-key="${safeKey}" data-day-original="${encodeURIComponent(dayKey)}">
-        <div class="csv-day-header" onclick="App.toggleCSVDay('${safeKey}')">
-          <div class="csv-day-check checked" data-day-check="${safeKey}">
+      return `<div class="csv-day-group" data-day-key="${dayKey}">
+        <div class="csv-day-header" onclick="App.toggleCSVDay('${dayKey}')">
+          <div class="csv-day-check checked" data-day-check="${dayKey}">
             <svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
           </div>
           <div class="csv-day-label">${dayKey}</div>
-          <input type="date" class="csv-day-date-input" data-day-date="${safeKey}" value="${dateStr}" onclick="event.stopPropagation()">
+          <input type="date" class="csv-day-date-input" data-day-date="${dayKey}" value="${dateStr}" onclick="event.stopPropagation()">
         </div>
         <div class="csv-task-list">
           ${tasks.map((row, idx) => {
             const color = SUBJECT_COLORS[row.subject.trim()] || SUBJECT_COLORS.Other;
-            return `<div class="csv-task-item" data-task-key="${safeKey}-${idx}">
-              <div class="csv-task-check checked" data-task-check="${safeKey}-${idx}" onclick="event.stopPropagation();App.toggleCSVTask('${safeKey}',${idx})">
+            return `<div class="csv-task-item" data-task-key="${dayKey}-${idx}">
+              <div class="csv-task-check checked" data-task-check="${dayKey}-${idx}" onclick="App.toggleCSVTask('${dayKey}',${idx})">
                 <svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
               </div>
               <div class="csv-task-info">
@@ -1692,15 +1602,15 @@ const App = (() => {
     openSheet('sheetCSVImport');
   }
 
-  function toggleCSVDay(safeKey) {
-    const check = document.querySelector(`[data-day-check="${safeKey}"]`);
+  function toggleCSVDay(dayKey) {
+    const check = document.querySelector(`[data-day-check="${dayKey}"]`);
     if (!check) return;
     const isChecked = check.classList.contains('checked');
     check.classList.toggle('checked', !isChecked);
     check.innerHTML = !isChecked ? '<svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
 
     // Toggle all tasks in this day
-    const group = document.querySelector(`[data-day-key="${safeKey}"]`);
+    const group = document.querySelector(`[data-day-key="${dayKey}"]`);
     if (group) {
       group.querySelectorAll('.csv-task-check').forEach(tc => {
         tc.classList.toggle('checked', !isChecked);
@@ -1709,8 +1619,8 @@ const App = (() => {
     }
   }
 
-  function toggleCSVTask(safeKey, idx) {
-    const check = document.querySelector(`[data-task-check="${safeKey}-${idx}"]`);
+  function toggleCSVTask(dayKey, idx) {
+    const check = document.querySelector(`[data-task-check="${dayKey}-${idx}"]`);
     if (!check) return;
     const isChecked = check.classList.contains('checked');
     check.classList.toggle('checked', !isChecked);
@@ -1722,20 +1632,18 @@ const App = (() => {
     const dayKeys = Object.keys(csvParsedData);
     let addedDays = 0, addedTasks = 0;
 
-    for (let i = 0; i < dayKeys.length; i++) {
-      const dayKey = dayKeys[i];
-      const safeKey = `csvday-${i}`;
-      const dayCheck = document.querySelector(`[data-day-check="${safeKey}"]`);
+    for (const dayKey of dayKeys) {
+      const dayCheck = document.querySelector(`[data-day-check="${dayKey}"]`);
       if (!dayCheck || !dayCheck.classList.contains('checked')) continue;
 
-      const dateInput = document.querySelector(`[data-day-date="${safeKey}"]`);
+      const dateInput = document.querySelector(`[data-day-date="${dayKey}"]`);
       const dateStr = dateInput ? dateInput.value : todayStr();
 
       const dayTasks = csvParsedData[dayKey];
       const selectedTasks = [];
 
       dayTasks.forEach((row, idx) => {
-        const taskCheck = document.querySelector(`[data-task-check="${safeKey}-${idx}"]`);
+        const taskCheck = document.querySelector(`[data-task-check="${dayKey}-${idx}"]`);
         if (taskCheck && taskCheck.classList.contains('checked')) {
           selectedTasks.push(row);
         }
@@ -1787,15 +1695,10 @@ const App = (() => {
     
     if (!text) return;
 
-    const priorityEl = document.getElementById('personalPriority');
-    const dueDateEl = document.getElementById('personalDueDate');
-
     const task = {
       id: uid(),
       text,
       completed: false,
-      priority: priorityEl ? priorityEl.value : 'normal',
-      dueDate: dueDateEl && dueDateEl.value ? dueDateEl.value : null,
       date: todayStr(),
       created_at: new Date().toISOString(),
     };
@@ -1805,8 +1708,6 @@ const App = (() => {
     Supa.insertPersonalTask(task);
     
     input.value = '';
-    if (priorityEl) priorityEl.value = 'normal';
-    if (dueDateEl) dueDateEl.value = '';
     renderPersonal();
     toast('Personal task added');
   }
@@ -1926,16 +1827,24 @@ const App = (() => {
   }
 
   async function saveSupabaseConfig() {
-    // Credentials are now hardcoded - this function is kept for backward compatibility
+    const url = document.getElementById('sbUrl').value.trim();
+    const key = document.getElementById('sbKey').value.trim();
+    
+    if (!url || !key) {
+      showSupabaseStatus('Enter both URL and key', 'error');
+      return;
+    }
+
     showSupabaseStatus('Connecting...', 'info');
 
-    const initResult = await Supa.init(SUPABASE_URL, SUPABASE_KEY);
+    const initResult = await Supa.init(url, key);
     
     if (!initResult.success) {
       showSupabaseStatus(`Connection failed: ${initResult.error}`, 'error');
       return;
     }
 
+    state.settings.supabase = { url, key };
     DB.save();
 
     showSupabaseStatus('Connected! Syncing data...', 'info');
@@ -2154,15 +2063,16 @@ const App = (() => {
   }
 
   async function trySupabaseInit() {
-    const result = await Supa.init(SUPABASE_URL, SUPABASE_KEY);
-    if (result.success) {
-      showSupabaseStatus('Connected', 'success');
-      Supa.syncDays();
-      Supa.syncTasks();
-      Supa.syncSessions();
-      Supa.syncPersonalTasks();
-    } else {
-      showSupabaseStatus('Offline mode', 'info');
+    const sc = state.settings.supabase;
+    if (sc && sc.url && sc.key) {
+      const result = await Supa.init(sc.url, sc.key);
+      if (result.success) {
+        showSupabaseStatus('Reconnected to Supabase', 'success');
+        Supa.syncDays();
+        Supa.syncTasks();
+        Supa.syncSessions();
+        Supa.syncPersonalTasks();
+      }
     }
   }
 
@@ -2198,14 +2108,12 @@ const App = (() => {
     addPersonalTask,
     togglePersonalTask,
     deletePersonalTask,
-    filterPersonalTasks,
     toggleCSVDay,
     toggleCSVTask,
     confirmCSVImport,
     nextQuestion,
     skipQuestion,
     toggleSubjectAnalytics,
-    toggleTopicAnalytics,
   };
 
 })();
