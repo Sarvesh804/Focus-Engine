@@ -107,9 +107,11 @@ const App = (() => {
     tasks: [],
     sessions: [],
     personalTasks: [],
+    questionAnalytics: [],
     settings: {
       dayEndTime: '23:00',
       dayStartTime: '06:00',
+      userName: '',
       notifications: {
         study: false,
         brainFog: false,
@@ -136,10 +138,15 @@ const App = (() => {
     pausedAt: null,
     elapsed: 0,
     timerRef: null,
+    mode: 'full',
+    questions: [],
+    currentQuestionStart: null,
+    questionElapsed: 0,
   };
 
   let deferredInstallPrompt = null;
   let clockRef = null;
+  let csvParsedData = null;
 
   // ─── LocalStorage ──────────────────────────────────────────────────────
   
@@ -150,6 +157,7 @@ const App = (() => {
         tasks: state.tasks,
         sessions: state.sessions,
         personalTasks: state.personalTasks,
+        questionAnalytics: state.questionAnalytics,
         settings: state.settings,
         pushSubscription: state.pushSubscription,
       }));
@@ -161,6 +169,7 @@ const App = (() => {
         if (saved.tasks) state.tasks = saved.tasks;
         if (saved.sessions) state.sessions = saved.sessions;
         if (saved.personalTasks) state.personalTasks = saved.personalTasks;
+        if (saved.questionAnalytics) state.questionAnalytics = saved.questionAnalytics;
         if (saved.settings) state.settings = Object.assign(state.settings, saved.settings);
         if (saved.pushSubscription) state.pushSubscription = saved.pushSubscription;
       } catch(e) {
@@ -535,8 +544,9 @@ const App = (() => {
     document.getElementById('liveDate').textContent =
       now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
+    const name = state.settings.userName;
     const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-    document.getElementById('greeting').textContent = g;
+    document.getElementById('greeting').textContent = name ? `${g}, ${name}` : g;
 
     const [eh, em] = (state.settings.dayEndTime || '23:00').split(':').map(Number);
     const [sh, sm] = (state.settings.dayStartTime || '06:00').split(':').map(Number);
@@ -847,6 +857,49 @@ const App = (() => {
         }).join('');
     }
 
+    // Render subject analytics
+    const analyticsEl = document.getElementById('subjectAnalytics');
+    if (analyticsEl) {
+      if (state.questionAnalytics.length === 0) {
+        analyticsEl.innerHTML = '<div style="font-size:13px;color:var(--text-3);text-align:center;padding:10px 0">No per-question data yet</div>';
+      } else {
+        const subjData = {};
+        state.questionAnalytics.forEach(qa => {
+          if (!subjData[qa.subject]) subjData[qa.subject] = { totalQ: 0, totalSecs: 0, sessions: 0 };
+          subjData[qa.subject].totalQ += qa.questions.length;
+          subjData[qa.subject].totalSecs += qa.questions.reduce((a, q) => a + q.seconds, 0);
+          subjData[qa.subject].sessions++;
+        });
+
+        analyticsEl.innerHTML = Object.entries(subjData).map(([subj, data]) => {
+          const color = SUBJECT_COLORS[subj] || SUBJECT_COLORS.Other;
+          const avgPerQ = data.totalQ > 0 ? Math.round(data.totalSecs / data.totalQ) : 0;
+          const safeKey = encodeURIComponent(subj).replace(/[^a-zA-Z0-9]/g, '_');
+          return `<div class="subject-analytics-card" id="sa-${safeKey}">
+            <div class="subject-analytics-header" onclick="App.toggleSubjectAnalytics('${safeKey}')">
+              <div class="subject-analytics-dot" style="background:${color}"></div>
+              <div class="subject-analytics-name">${subj}</div>
+              <svg class="subject-analytics-chevron" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
+            </div>
+            <div class="subject-analytics-body">
+              <div class="analytics-metric-row">
+                <div class="analytics-metric-label">Total Questions</div>
+                <div class="analytics-metric-value">${data.totalQ}</div>
+              </div>
+              <div class="analytics-metric-row">
+                <div class="analytics-metric-label">Avg Time / Question</div>
+                <div class="analytics-metric-value">${fmtTime(avgPerQ)}</div>
+              </div>
+              <div class="analytics-metric-row">
+                <div class="analytics-metric-label">Sessions</div>
+                <div class="analytics-metric-value">${data.sessions}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+
     const enc = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
     document.getElementById('encourageText').textContent = enc;
 
@@ -856,6 +909,11 @@ const App = (() => {
   }
 
   const ENCOURAGEMENTS = QUOTES;
+
+  function toggleSubjectAnalytics(subjKey) {
+    const card = document.getElementById(`sa-${subjKey}`);
+    if (card) card.classList.toggle('expanded');
+  }
 
   // ─── Personal Tasks Rendering ──────────────────────────────────────────
   
@@ -895,6 +953,9 @@ const App = (() => {
   function renderSettings() {
     document.getElementById('settingEndTime').value   = state.settings.dayEndTime;
     document.getElementById('settingStartTime').value = state.settings.dayStartTime;
+
+    const nameEl = document.getElementById('settingUserName');
+    if (nameEl) nameEl.value = state.settings.userName || '';
 
     const n = state.settings.notifications;
     setToggleState('toggleStudyNotif',    n.study);
@@ -1186,13 +1247,27 @@ const App = (() => {
 
     closeSheet();
 
-    session.active    = true;
-    session.paused    = false;
     session.taskId    = taskId;
     session.subject   = task.subject;
     session.topic     = task.topic;
+
+    openSheet('sheetSessionMode');
+  }
+
+  function startSessionWithMode(mode) {
+    const task = state.tasks.find(t => t.id === session.taskId);
+    if (!task) return;
+
+    closeSheet();
+
+    session.active    = true;
+    session.paused    = false;
     session.startTime = Date.now();
     session.elapsed   = 0;
+    session.mode      = mode;
+    session.questions = [];
+    session.currentQuestionStart = Date.now();
+    session.questionElapsed = 0;
 
     document.getElementById('sessionSubject').textContent = task.subject;
     document.getElementById('sessionTopic').textContent   = task.topic;
@@ -1201,6 +1276,15 @@ const App = (() => {
     document.getElementById('btnPauseSession').textContent = 'Pause';
     document.getElementById('sessionOverlay').classList.add('active');
 
+    const pqPanel = document.getElementById('perQuestionPanel');
+    if (mode === 'perQuestion') {
+      pqPanel.style.display = '';
+      document.getElementById('questionNumber').textContent = '1';
+      document.getElementById('questionTimer').textContent = '00:00';
+    } else {
+      pqPanel.style.display = 'none';
+    }
+
     session.timerRef = setInterval(tickSession, 1000);
   }
 
@@ -1208,6 +1292,12 @@ const App = (() => {
     if (!session.active || session.paused) return;
     session.elapsed = Math.floor((Date.now() - session.startTime) / 1000);
     document.getElementById('sessionTimer').textContent = fmtTime(session.elapsed);
+
+    if (session.mode === 'perQuestion' && session.currentQuestionStart) {
+      session.questionElapsed = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
+      const qtEl = document.getElementById('questionTimer');
+      if (qtEl) qtEl.textContent = fmtTime(session.questionElapsed);
+    }
   }
 
   function pauseSession() {
@@ -1220,6 +1310,9 @@ const App = (() => {
     } else {
       const pausedDuration = Date.now() - session.pausedAt;
       session.startTime += pausedDuration;
+      if (session.mode === 'perQuestion' && session.currentQuestionStart) {
+        session.currentQuestionStart += pausedDuration;
+      }
       session.paused   = false;
       session.pausedAt = null;
       document.getElementById('btnPauseSession').textContent = 'Pause';
@@ -1231,8 +1324,17 @@ const App = (() => {
     if (!session.active) return;
     clearInterval(session.timerRef);
 
+    // Capture final per-question data
+    if (session.mode === 'perQuestion' && session.currentQuestionStart) {
+      const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
+      if (qTime > 0) {
+        session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: false });
+      }
+    }
+
     const finalElapsed = session.elapsed;
     document.getElementById('sessionOverlay').classList.remove('active');
+    document.getElementById('perQuestionPanel').style.display = 'none';
 
     if (finalElapsed < 10) {
       session.active = false;
@@ -1259,6 +1361,18 @@ const App = (() => {
       }
     }
 
+    // Store per-question analytics
+    if (session.mode === 'perQuestion' && session.questions.length > 0) {
+      state.questionAnalytics.push({
+        id: uid(),
+        sessionId: record.id,
+        subject: session.subject,
+        topic: session.topic,
+        date: todayStr(),
+        questions: session.questions,
+      });
+    }
+
     DB.save();
     Supa.insertSession(record);
     session.active = false;
@@ -1267,9 +1381,82 @@ const App = (() => {
     renderProgress();
     renderBacklog();
 
-    toast(`Session saved — ${fmtTime(finalElapsed)} focused`, 'success');
+    // Show summary overlay
+    showSessionSummary(record, session.questions, session.mode);
 
     if (state.settings.sound) playEndTone();
+  }
+
+  function showSessionSummary(record, questions, mode) {
+    const statsEl = document.getElementById('summaryStats');
+    const detailsEl = document.getElementById('summaryDetails');
+    const totalMins = Math.floor(record.duration_seconds / 60);
+    const totalSecs = record.duration_seconds % 60;
+
+    let statsHtml = `
+      <div class="summary-stat-card">
+        <div class="summary-stat-value">${fmtTime(record.duration_seconds)}</div>
+        <div class="summary-stat-label">Total Time</div>
+      </div>
+      <div class="summary-stat-card">
+        <div class="summary-stat-value">${record.subject}</div>
+        <div class="summary-stat-label">Subject</div>
+      </div>`;
+
+    if (mode === 'perQuestion' && questions.length > 0) {
+      const avgSecs = Math.round(questions.reduce((a, q) => a + q.seconds, 0) / questions.length);
+      statsHtml += `
+        <div class="summary-stat-card">
+          <div class="summary-stat-value">${questions.length}</div>
+          <div class="summary-stat-label">Questions</div>
+        </div>
+        <div class="summary-stat-card">
+          <div class="summary-stat-value">${fmtTime(avgSecs)}</div>
+          <div class="summary-stat-label">Avg / Question</div>
+        </div>`;
+    }
+
+    statsEl.innerHTML = statsHtml;
+
+    let detailsHtml = '';
+    if (mode === 'perQuestion' && questions.length > 0) {
+      const avgSecs = Math.round(questions.reduce((a, q) => a + q.seconds, 0) / questions.length);
+      detailsHtml += '<div class="summary-section-title">Question Breakdown</div>';
+      detailsHtml += questions.map(q => {
+        const slow = q.seconds > avgSecs * 1.5 ? ' slow' : '';
+        return `<div class="summary-question-item">
+          <div class="summary-question-num">${q.skipped ? 'Skipped' : 'Q' + q.number}</div>
+          <div class="summary-question-time${slow}">${fmtTime(q.seconds)}</div>
+        </div>`;
+      }).join('');
+    }
+    detailsEl.innerHTML = detailsHtml;
+
+    document.getElementById('sessionSummaryOverlay').classList.add('active');
+  }
+
+  function closeSummary() {
+    document.getElementById('sessionSummaryOverlay').classList.remove('active');
+  }
+
+  function nextQuestion() {
+    if (!session.active || session.mode !== 'perQuestion') return;
+    const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
+    session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: false });
+    session.currentQuestionStart = Date.now();
+    session.questionElapsed = 0;
+    document.getElementById('questionNumber').textContent = session.questions.length + 1;
+    document.getElementById('questionTimer').textContent = '00:00';
+  }
+
+  function skipQuestion() {
+    if (!session.active || session.mode !== 'perQuestion') return;
+    const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
+    session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: true });
+    session.currentQuestionStart = Date.now();
+    session.questionElapsed = 0;
+    document.getElementById('questionNumber').textContent = session.questions.length + 1;
+    document.getElementById('questionTimer').textContent = '00:00';
   }
 
   function playEndTone() {
@@ -1350,7 +1537,7 @@ const App = (() => {
         return;
       }
 
-      document.getElementById('csvStatus').textContent = 'Importing schedule…';
+      document.getElementById('csvStatus').textContent = 'Preparing preview…';
 
       const dayGroups = {};
       rows.forEach(row => {
@@ -1359,57 +1546,9 @@ const App = (() => {
         dayGroups[dayKey].push(row);
       });
 
-      // FIXED: Pure local date calculation
-      const baseDate = new Date();
-      const dayKeys = Object.keys(dayGroups);
-      
-      let addedDays = 0, addedTasks = 0;
-
-      for (let i = 0; i < dayKeys.length; i++) {
-        const dayKey = dayKeys[i];
-        const dayTasks = dayGroups[dayKey];
-        
-        // FIXED: Explicit local date construction
-        const localDate = new Date();
-        localDate.setDate(baseDate.getDate() + i);
-        
-        const y = localDate.getFullYear();
-        const m = String(localDate.getMonth() + 1).padStart(2, '0');
-        const d = String(localDate.getDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
-
-        const day = {
-          id: uid(),
-          label: dayKey,
-          date: dateStr,
-          created_at: new Date().toISOString()
-        };
-
-        state.days.push(day);
-        const result = await Supa.insertDay(day);
-        if (result.success) addedDays++;
-
-        for (const row of dayTasks) {
-          const task = {
-            id: uid(),
-            day_id: day.id,
-            subject: row.subject.trim(),
-            topic: row.topic.trim(),
-            estimated_minutes: parseInt(row.estimated_minutes),
-            status: 'pending',
-            created_at: new Date().toISOString()
-          };
-          state.tasks.push(task);
-          const taskResult = await Supa.insertTask(task);
-          if (taskResult.success) addedTasks++;
-        }
-      }
-
-      DB.save();
+      csvParsedData = dayGroups;
       proc.classList.remove('active');
-      renderPlan();
-      renderHome();
-      toast(`Imported ${addedDays} days, ${addedTasks} tasks`, 'success');
+      showCSVSelectionUI(dayGroups);
 
     } catch (err) {
       console.error('CSV import error:', err);
@@ -1418,10 +1557,140 @@ const App = (() => {
     }
   }
 
+  // ─── CSV Selection UI ───────────────────────────────────────────────────
+
+  function showCSVSelectionUI(dayGroups) {
+    const dayKeys = Object.keys(dayGroups);
+    const baseDate = new Date();
+    const listEl = document.getElementById('csvImportList');
+
+    listEl.innerHTML = dayKeys.map((dayKey, i) => {
+      const localDate = new Date();
+      localDate.setDate(baseDate.getDate() + i);
+      const y = localDate.getFullYear();
+      const m = String(localDate.getMonth() + 1).padStart(2, '0');
+      const d = String(localDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+      const tasks = dayGroups[dayKey];
+
+      return `<div class="csv-day-group" data-day-key="${dayKey}">
+        <div class="csv-day-header" onclick="App.toggleCSVDay('${dayKey}')">
+          <div class="csv-day-check checked" data-day-check="${dayKey}">
+            <svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
+          </div>
+          <div class="csv-day-label">${dayKey}</div>
+          <input type="date" class="csv-day-date-input" data-day-date="${dayKey}" value="${dateStr}" onclick="event.stopPropagation()">
+        </div>
+        <div class="csv-task-list">
+          ${tasks.map((row, idx) => {
+            const color = SUBJECT_COLORS[row.subject.trim()] || SUBJECT_COLORS.Other;
+            return `<div class="csv-task-item" data-task-key="${dayKey}-${idx}">
+              <div class="csv-task-check checked" data-task-check="${dayKey}-${idx}" onclick="App.toggleCSVTask('${dayKey}',${idx})">
+                <svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
+              </div>
+              <div class="csv-task-info">
+                <div class="csv-task-subj" style="color:${color}">${row.subject.trim()}</div>
+                <div class="csv-task-topic">${row.topic.trim()}</div>
+              </div>
+              <div class="csv-task-mins">${row.estimated_minutes}m</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+
+    openSheet('sheetCSVImport');
+  }
+
+  function toggleCSVDay(dayKey) {
+    const check = document.querySelector(`[data-day-check="${dayKey}"]`);
+    if (!check) return;
+    const isChecked = check.classList.contains('checked');
+    check.classList.toggle('checked', !isChecked);
+    check.innerHTML = !isChecked ? '<svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
+
+    // Toggle all tasks in this day
+    const group = document.querySelector(`[data-day-key="${dayKey}"]`);
+    if (group) {
+      group.querySelectorAll('.csv-task-check').forEach(tc => {
+        tc.classList.toggle('checked', !isChecked);
+        tc.innerHTML = !isChecked ? '<svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
+      });
+    }
+  }
+
+  function toggleCSVTask(dayKey, idx) {
+    const check = document.querySelector(`[data-task-check="${dayKey}-${idx}"]`);
+    if (!check) return;
+    const isChecked = check.classList.contains('checked');
+    check.classList.toggle('checked', !isChecked);
+    check.innerHTML = !isChecked ? '<svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
+  }
+
+  async function confirmCSVImport() {
+    if (!csvParsedData) return;
+    const dayKeys = Object.keys(csvParsedData);
+    let addedDays = 0, addedTasks = 0;
+
+    for (const dayKey of dayKeys) {
+      const dayCheck = document.querySelector(`[data-day-check="${dayKey}"]`);
+      if (!dayCheck || !dayCheck.classList.contains('checked')) continue;
+
+      const dateInput = document.querySelector(`[data-day-date="${dayKey}"]`);
+      const dateStr = dateInput ? dateInput.value : todayStr();
+
+      const dayTasks = csvParsedData[dayKey];
+      const selectedTasks = [];
+
+      dayTasks.forEach((row, idx) => {
+        const taskCheck = document.querySelector(`[data-task-check="${dayKey}-${idx}"]`);
+        if (taskCheck && taskCheck.classList.contains('checked')) {
+          selectedTasks.push(row);
+        }
+      });
+
+      if (selectedTasks.length === 0) continue;
+
+      const day = {
+        id: uid(),
+        label: dayKey,
+        date: dateStr,
+        created_at: new Date().toISOString()
+      };
+
+      state.days.push(day);
+      await Supa.insertDay(day);
+      addedDays++;
+
+      for (const row of selectedTasks) {
+        const task = {
+          id: uid(),
+          day_id: day.id,
+          subject: row.subject.trim(),
+          topic: row.topic.trim(),
+          estimated_minutes: parseInt(row.estimated_minutes),
+          status: 'pending',
+          created_at: new Date().toISOString()
+        };
+        state.tasks.push(task);
+        await Supa.insertTask(task);
+        addedTasks++;
+      }
+    }
+
+    DB.save();
+    csvParsedData = null;
+    closeSheet();
+    renderPlan();
+    renderHome();
+    toast(`Imported ${addedDays} days, ${addedTasks} tasks`, 'success');
+  }
+
   // ─── Personal Tasks ────────────────────────────────────────────────────
   
   function addPersonalTask() {
     const input = document.getElementById('personalInput');
+    if (!input) return;
     const text = input.value.trim();
     
     if (!text) return;
@@ -1631,6 +1900,7 @@ const App = (() => {
     state.tasks = []; 
     state.sessions = [];
     state.personalTasks = [];
+    state.questionAnalytics = [];
     DB.save();
     renderHome(); 
     renderPlan(); 
@@ -1713,6 +1983,82 @@ const App = (() => {
       deferredInstallPrompt = e;
     });
 
+    // User name setting
+    const userNameInput = document.getElementById('settingUserName');
+    if (userNameInput) {
+      userNameInput.addEventListener('change', e => {
+        state.settings.userName = e.target.value.trim();
+        DB.save();
+        updateClock();
+      });
+    }
+
+    // CSV import buttons
+    const csvSelectAll = document.getElementById('csvSelectAll');
+    if (csvSelectAll) {
+      csvSelectAll.addEventListener('click', () => {
+        document.querySelectorAll('.csv-day-check, .csv-task-check').forEach(c => {
+          c.classList.add('checked');
+          const size = c.classList.contains('csv-day-check') ? 12 : 10;
+          c.innerHTML = `<svg width="${size}" height="${size}" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>`;
+        });
+      });
+    }
+    const csvDeselectAll = document.getElementById('csvDeselectAll');
+    if (csvDeselectAll) {
+      csvDeselectAll.addEventListener('click', () => {
+        document.querySelectorAll('.csv-day-check, .csv-task-check').forEach(c => {
+          c.classList.remove('checked');
+          c.innerHTML = '';
+        });
+      });
+    }
+    const csvConfirm = document.getElementById('csvImportConfirm');
+    if (csvConfirm) {
+      csvConfirm.addEventListener('click', confirmCSVImport);
+    }
+
+    // Per-question buttons
+    const btnNext = document.getElementById('btnNextQuestion');
+    if (btnNext) btnNext.addEventListener('click', nextQuestion);
+    const btnSkip = document.getElementById('btnSkipQuestion');
+    if (btnSkip) btnSkip.addEventListener('click', skipQuestion);
+
+    // Navigation guard - prevent accidental PWA exit
+    history.pushState(null, '', location.href);
+    window.addEventListener('popstate', function(e) {
+      history.pushState(null, '', location.href);
+      if (session.active) {
+        toast('End the session before navigating', '');
+        return;
+      }
+      const openSheetEl = document.querySelector('.bottom-sheet.active');
+      if (openSheetEl) {
+        closeSheet();
+        return;
+      }
+      const activeTab = document.querySelector('.tab-panel.active');
+      if (activeTab && activeTab.id !== 'tab-home') {
+        const homeBtn = document.querySelector('.nav-item[data-tab="home"]');
+        switchTab('home', homeBtn);
+      }
+    });
+
+    // Keyboard accessibility
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const summary = document.getElementById('sessionSummaryOverlay');
+        if (summary && summary.classList.contains('active')) {
+          closeSummary();
+          return;
+        }
+        const openSheetEl = document.querySelector('.bottom-sheet.active');
+        if (openSheetEl) {
+          closeSheet();
+        }
+      }
+    });
+
     trySupabaseInit();
   }
 
@@ -1746,6 +2092,7 @@ const App = (() => {
     toggleEditTask,
     toggleEditDay,
     startSession,
+    startSessionWithMode,
     startSessionFlow,
     pauseSession,
     endSession,
@@ -1757,9 +2104,16 @@ const App = (() => {
     clearData,
     handleInstall,
     closeSheet,
+    closeSummary,
     addPersonalTask,
     togglePersonalTask,
     deletePersonalTask,
+    toggleCSVDay,
+    toggleCSVTask,
+    confirmCSVImport,
+    nextQuestion,
+    skipQuestion,
+    toggleSubjectAnalytics,
   };
 
 })();
