@@ -27,6 +27,7 @@
       <div class="home-time-card">
       <div class="home-header">
         <div class="greeting-block">
+          <div class="greeting-label" id="greeting">Good morning</div>
           <div class="live-time" id="liveTime">--:--</div>
           <div class="live-date" id="liveDate">Loading...</div>
         </div>
@@ -35,6 +36,27 @@
             <path d="M12 5v14M5 12h14"/>
           </svg>
         </button>
+      </div>
+
+      <!-- Motivational Quote -->
+      <div class="quote-container" id="quoteContainer">
+        <div class="quote-text" id="quoteText"></div>
+      </div>
+
+      <!-- Countdown Ring -->
+      <div class="ring-container">
+        <div class="ring-wrapper">
+          <svg class="ring-svg" viewBox="0 0 168 168">
+            <circle class="ring-track" cx="84" cy="84" r="74"/>
+            <circle class="ring-progress" id="ringProgress" cx="84" cy="84" r="74"
+              stroke-dasharray="465" stroke-dashoffset="465"/>
+          </svg>
+          <div class="ring-inner">
+            <div class="ring-label">Day ends in</div>
+            <div class="ring-value" id="ringValue">--h --m</div>
+            <div class="ring-subtext" id="ringEnd">ends at --:--</div>
+          </div>
+        </div>
       </div>
       </div><!-- end home-time-card -->
 
@@ -220,33 +242,16 @@
     <div class="tab-panel" id="tab-personal">
       <div class="personal-header">
         <div class="personal-title">Personal Tasks</div>
-        <div class="personal-sub">Quick notes & to-dos with priority and due dates</div>
+        <div class="personal-sub">Quick notes & to-dos (separate from study tracking)</div>
       </div>
 
       <div class="personal-add-box">
-        <div class="personal-add-form">
-          <input type="text" class="personal-input" id="personalInput" placeholder="What needs to be done?" maxlength="200">
-          <div class="personal-add-extras">
-            <select class="personal-priority-select" id="personalPriority">
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="low">Low</option>
-            </select>
-            <input type="date" class="personal-due-input" id="personalDueDate" placeholder="Due date">
-          </div>
-        </div>
+        <input type="text" class="personal-input" id="personalInput" placeholder="Add personal task..." maxlength="200">
         <button class="btn-personal-add" id="btnAddPersonal">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M12 5v14M5 12h14"/>
           </svg>
         </button>
-      </div>
-
-      <!-- Personal task filters -->
-      <div class="personal-filters" role="group" aria-label="Task filters">
-        <button class="personal-filter-btn active" data-filter="all" aria-pressed="true" onclick="App.filterPersonalTasks('all',this)">All</button>
-        <button class="personal-filter-btn" data-filter="active" aria-pressed="false" onclick="App.filterPersonalTasks('active',this)">Active</button>
-        <button class="personal-filter-btn" data-filter="completed" aria-pressed="false" onclick="App.filterPersonalTasks('completed',this)">Done</button>
       </div>
 
       <div class="personal-list" id="personalList">
@@ -370,15 +375,14 @@
         </div>
       </div>
 
-      <!-- Supabase Cloud Sync (Auto-connected) -->
+      <!-- Supabase Config -->
       <div class="settings-group">
-        <div class="settings-group-label">Cloud Sync</div>
-        <div class="setting-row">
-          <div class="setting-label-wrap">
-            <div class="setting-label">Supabase Sync</div>
-            <div class="setting-desc">Your data is automatically synced to the cloud</div>
-          </div>
-          <div class="supabase-status" id="supabaseStatus" style="font-size:11px;"></div>
+        <div class="settings-group-label">Supabase (Optional Cloud Sync)</div>
+        <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <input class="form-input" id="sbUrl" placeholder="Supabase Project URL" style="margin:0">
+          <input class="form-input" id="sbKey" placeholder="Supabase Anon Key" type="password" style="margin:0">
+          <button class="btn-primary" style="height:44px;font-size:13px;" onclick="App.saveSupabaseConfig()">Connect Supabase</button>
+          <div class="supabase-status" id="supabaseStatus"></div>
         </div>
       </div>
 
@@ -439,21 +443,13 @@
 
   <!-- Per-question controls (hidden by default) -->
   <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;padding:0 20px;">
-    <div class="pq-card">
-      <div class="pq-header">
-        <div class="pq-question-label">Question <span id="questionNumber">1</span></div>
-        <div class="pq-question-timer" id="questionTimer">00:00</div>
-      </div>
-      <div class="pq-actions">
-        <button class="btn-pq-skip" id="btnSkipQuestion">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 4h4l5 8-5 8H5l5-8z"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
-          Skip
-        </button>
-        <button class="btn-pq-next" id="btnNextQuestion">
-          Next Question
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
-      </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;">Question <span id="questionNumber">1</span></div>
+      <div style="font-family:var(--font-mono);font-size:14px;color:var(--text-2);" id="questionTimer">00:00</div>
+    </div>
+    <div class="session-controls" style="margin-top:0;">
+      <button class="btn-session-end" id="btnSkipQuestion" style="font-size:13px;">Skip</button>
+      <button class="btn-session-pause" id="btnNextQuestion" style="font-size:13px;">Next Question</button>
     </div>
   </div>
 </div>
@@ -573,7 +569,7 @@
     <button class="btn-secondary" style="flex:1;height:36px;font-size:12px;" id="csvSelectAll">Select All</button>
     <button class="btn-secondary" style="flex:1;height:36px;font-size:12px;" id="csvDeselectAll">Deselect All</button>
   </div>
-  <div class="csv-import-list" id="csvImportList" style="padding:0 16px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch;"></div>
+  <div class="csv-import-list" id="csvImportList" style="padding:0 16px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
   <div class="sheet-actions" style="padding:16px 20px 0;">
     <button class="btn-secondary" style="flex:1" onclick="App.closeSheet()">Cancel</button>
     <button class="btn-primary" style="flex:2" id="csvImportConfirm">Import Selected</button>
