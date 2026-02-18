@@ -666,6 +666,14 @@ const App = (() => {
   
   function renderPlan() {
     const list = document.getElementById('daysList');
+
+    // Capture expanded day cards before re-render
+    const expandedDays = new Set();
+    list.querySelectorAll('.day-card.expanded').forEach(card => {
+      const id = card.id.replace('daycard-', '');
+      expandedDays.add(id);
+    });
+
     if (state.days.length === 0) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-icon">
@@ -684,7 +692,7 @@ const App = (() => {
       const done  = tasks.filter(t => t.status === 'completed').length;
       const today = day.date === todayStr();
 
-      return `<div class="day-card" id="daycard-${day.id}">
+      return `<div class="day-card${expandedDays.has(day.id) ? ' expanded' : ''}" id="daycard-${day.id}">
         <div class="day-card-header" onclick="App.toggleDayCard('${day.id}')">
           <div class="day-number-badge">${day.label || `Day ${idx+1}`}</div>
           <div class="day-info">
@@ -829,7 +837,7 @@ const App = (() => {
         .reduce((a,s) => a + Math.floor((s.duration_seconds||0)/60), 0);
       const maxMins = 240;
       const pct = Math.min(100, Math.round((dayMins / maxMins) * 100));
-      const d = new Date(date);
+      const d = parseLocalDate(date);
       const label = ['S','M','T','W','T','F','S'][d.getDay()];
       const isToday = date === todayStr();
       return `<div class="week-day-col">
@@ -1105,6 +1113,7 @@ const App = (() => {
     Supa.updateTask(taskId, { status: task.status });
     renderPlan();
     renderHome();
+    renderBacklog();
   }
 
   function deleteTask(taskId) {
@@ -1236,7 +1245,8 @@ const App = (() => {
     const day = state.days.find(d => d.id === dayId);
     if (!day) return;
 
-    const tasksCount = state.tasks.filter(t => t.day_id === dayId).length;
+    const tasksToDelete = state.tasks.filter(t => t.day_id === dayId);
+    const tasksCount = tasksToDelete.length;
     
     if (!confirm(`Delete "${day.label}" and ${tasksCount} task(s)?`)) return;
 
@@ -1244,7 +1254,8 @@ const App = (() => {
     state.days = state.days.filter(d => d.id !== dayId);
     
     DB.save();
-    Supa.deleteDay(dayId);
+    Promise.all(tasksToDelete.map(t => Supa.deleteTask(t.id)))
+      .then(() => Supa.deleteDay(dayId));
     
     renderPlan();
     renderHome();
