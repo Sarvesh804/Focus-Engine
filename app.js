@@ -1155,7 +1155,7 @@ const App = (() => {
       if (hMatch) newMins += parseInt(hMatch[1]) * 60;
       if (mMatch) newMins += parseInt(mMatch[1]);
       if (!hMatch && !mMatch) {
-        const plain = parseInt(minsText);
+        const plain = parseInt(minsText.trim(), 10);
         if (!isNaN(plain) && plain > 0) newMins = plain;
       }
       
