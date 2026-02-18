@@ -666,6 +666,14 @@ const App = (() => {
   
   function renderPlan() {
     const list = document.getElementById('daysList');
+
+    // Capture expanded day cards before re-render
+    const expandedDays = new Set();
+    list.querySelectorAll('.day-card.expanded').forEach(card => {
+      const id = card.id.replace('daycard-', '');
+      expandedDays.add(id);
+    });
+
     if (state.days.length === 0) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-icon">
@@ -684,7 +692,7 @@ const App = (() => {
       const done  = tasks.filter(t => t.status === 'completed').length;
       const today = day.date === todayStr();
 
-      return `<div class="day-card" id="daycard-${day.id}">
+      return `<div class="day-card${expandedDays.has(day.id) ? ' expanded' : ''}" id="daycard-${day.id}">
         <div class="day-card-header" onclick="App.toggleDayCard('${day.id}')">
           <div class="day-number-badge">${day.label || `Day ${idx+1}`}</div>
           <div class="day-info">
@@ -829,7 +837,7 @@ const App = (() => {
         .reduce((a,s) => a + Math.floor((s.duration_seconds||0)/60), 0);
       const maxMins = 240;
       const pct = Math.min(100, Math.round((dayMins / maxMins) * 100));
-      const d = new Date(date);
+      const d = parseLocalDate(date);
       const label = ['S','M','T','W','T','F','S'][d.getDay()];
       const isToday = date === todayStr();
       return `<div class="week-day-col">
@@ -1009,11 +1017,17 @@ const App = (() => {
 
     list.innerHTML = sorted.map(task => {
       const dateLabel = task.date ? parseLocalDate(task.date).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
+      const freq = task.frequency || 'once';
+      const prio = task.priority || 'none';
+      const freqBadge = freq !== 'once' ? `<span class="personal-frequency-badge">${freq === 'daily' ? 'Daily' : 'Weekly'}</span>` : '';
+      const prioDot = prio !== 'none' ? `<div class="personal-priority-dot ${prio}" title="${prio} priority"></div>` : '';
       return `<div class="personal-item ${task.completed ? 'completed' : ''}">
+        ${prioDot}
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
           ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
         </div>
         <div class="personal-text ${task.completed ? 'done' : ''}">${task.text}</div>
+        ${freqBadge}
         ${dateLabel ? `<div class="personal-date">${dateLabel}</div>` : ''}
         <button class="personal-delete" onclick="App.deletePersonalTask('${task.id}')">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1099,6 +1113,7 @@ const App = (() => {
     Supa.updateTask(taskId, { status: task.status });
     renderPlan();
     renderHome();
+    renderBacklog();
   }
 
   function deleteTask(taskId) {
@@ -1230,7 +1245,8 @@ const App = (() => {
     const day = state.days.find(d => d.id === dayId);
     if (!day) return;
 
-    const tasksCount = state.tasks.filter(t => t.day_id === dayId).length;
+    const tasksToDelete = state.tasks.filter(t => t.day_id === dayId);
+    const tasksCount = tasksToDelete.length;
     
     if (!confirm(`Delete "${day.label}" and ${tasksCount} task(s)?`)) return;
 
@@ -1238,7 +1254,8 @@ const App = (() => {
     state.days = state.days.filter(d => d.id !== dayId);
     
     DB.save();
-    Supa.deleteDay(dayId);
+    Promise.all(tasksToDelete.map(t => Supa.deleteTask(t.id)))
+      .then(() => Supa.deleteDay(dayId));
     
     renderPlan();
     renderHome();
@@ -1397,7 +1414,17 @@ const App = (() => {
     if (!session.active) return;
     clearInterval(session.timerRef);
 
-    // Capture final per-question data
+    // Adjust for pause FIRST, before capturing final question data
+    if (session.paused) {
+      const pausedDuration = Date.now() - session.pausedAt;
+      session.startTime += pausedDuration;
+      if (session.mode === 'perQuestion' && session.currentQuestionStart) {
+        session.currentQuestionStart += pausedDuration;
+      }
+      session.paused = false;
+    }
+
+    // Capture final per-question data (now pause-adjusted)
     if (session.mode === 'perQuestion' && session.currentQuestionStart) {
       const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
       if (qTime > 0) {
@@ -1405,13 +1432,6 @@ const App = (() => {
       }
     }
 
-    // Recompute final elapsed accounting for pauses
-    if (session.paused) {
-      // If ending while paused, account for the paused time
-      const pausedDuration = Date.now() - session.pausedAt;
-      session.startTime += pausedDuration;
-      session.paused = false;
-    }
     const finalElapsed = Math.floor((Date.now() - session.startTime) / 1000);
     document.getElementById('sessionOverlay').classList.remove('active');
     document.getElementById('perQuestionPanel').style.display = 'none';
@@ -1520,7 +1540,7 @@ const App = (() => {
   }
 
   function nextQuestion() {
-    if (!session.active || session.mode !== 'perQuestion') return;
+    if (!session.active || session.paused || session.mode !== 'perQuestion') return;
     const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
     session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: false });
     session.currentQuestionStart = Date.now();
@@ -1530,7 +1550,7 @@ const App = (() => {
   }
 
   function skipQuestion() {
-    if (!session.active || session.mode !== 'perQuestion') return;
+    if (!session.active || session.paused || session.mode !== 'perQuestion') return;
     const qTime = Math.floor((Date.now() - session.currentQuestionStart) / 1000);
     session.questions.push({ number: session.questions.length + 1, seconds: qTime, skipped: true });
     session.currentQuestionStart = Date.now();
@@ -1805,12 +1825,19 @@ const App = (() => {
     
     if (!text) return;
 
+    const freqChip = document.querySelector('#personalFrequencyChips .personal-chip.active');
+    const prioChip = document.querySelector('#personalPriorityChips .personal-chip.active');
+    const frequency = freqChip ? freqChip.dataset.frequency : 'once';
+    const priority = prioChip ? prioChip.dataset.priority : 'none';
+
     const task = {
       id: uid(),
       text,
       completed: false,
       date: todayStr(),
       created_at: new Date().toISOString(),
+      frequency,
+      priority,
     };
 
     state.personalTasks.push(task);
@@ -1818,6 +1845,9 @@ const App = (() => {
     Supa.insertPersonalTask(task);
     
     input.value = '';
+    // Reset chips to defaults
+    document.querySelectorAll('#personalFrequencyChips .personal-chip').forEach(c => c.classList.toggle('active', c.dataset.frequency === 'once'));
+    document.querySelectorAll('#personalPriorityChips .personal-chip').forEach(c => c.classList.toggle('active', c.dataset.priority === 'none'));
     renderPersonal();
     toast('Personal task added');
   }
@@ -1827,6 +1857,34 @@ const App = (() => {
     if (!task) return;
     
     task.completed = !task.completed;
+
+    // Handle recurrence: when completing a recurring task, schedule next occurrence
+    if (task.completed && task.frequency && task.frequency !== 'once') {
+      const now = new Date();
+      let nextDate;
+      if (task.frequency === 'daily') {
+        nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      } else if (task.frequency === 'weekly') {
+        nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+      }
+      if (nextDate) {
+        const y = nextDate.getFullYear();
+        const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const d = String(nextDate.getDate()).padStart(2, '0');
+        const newTask = {
+          id: uid(),
+          text: task.text,
+          completed: false,
+          date: `${y}-${m}-${d}`,
+          created_at: new Date().toISOString(),
+          frequency: task.frequency,
+          priority: task.priority || 'none',
+        };
+        state.personalTasks.push(newTask);
+        Supa.insertPersonalTask(newTask);
+      }
+    }
+
     DB.save();
     Supa.updatePersonalTask(id, { completed: task.completed });
     renderPersonal();
@@ -2040,18 +2098,7 @@ const App = (() => {
       openSheet('sheetAddDay');
     });
 
-    // FIXED: Home tab plus button
-    document.getElementById('btnDayLabel').addEventListener('click', () => {
-      const today = todayStr();
-      const todayDay = state.days.find(d => d.date === today);
-      if (todayDay) {
-        toast('Today\'s plan is already set', 'info');
-      } else {
-        document.getElementById('inputDayDate').value = today;
-        openSheet('sheetAddDay');
-      }
-    });
-
+    // CSV import button
     document.getElementById('btnImportCSV').addEventListener('click', () => {
       document.getElementById('csvFileInput').click();
     });
@@ -2064,6 +2111,20 @@ const App = (() => {
     document.getElementById('btnAddPersonal').addEventListener('click', addPersonalTask);
     document.getElementById('personalInput').addEventListener('keypress', e => {
       if (e.key === 'Enter') addPersonalTask();
+    });
+
+    // Personal task frequency/priority chip selectors
+    document.querySelectorAll('#personalFrequencyChips .personal-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#personalFrequencyChips .personal-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+    document.querySelectorAll('#personalPriorityChips .personal-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#personalPriorityChips .personal-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
     });
 
     document.getElementById('btnInstall').addEventListener('click', handleInstall);

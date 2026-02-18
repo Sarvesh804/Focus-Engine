@@ -35,11 +35,6 @@
           <div class="live-time" id="liveTime">--:--</div>
           <div class="live-date" id="liveDate">Loading...</div>
         </div>
-        <button class="btn-icon-sm" id="btnDayLabel" title="Today's plan label">
-          <svg class="nav-icon" style="width:18px;height:18px" viewBox="0 0 24 24">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-        </button>
       </div>
       </div><!-- end home-time-card -->
 
@@ -273,6 +268,26 @@
         </button>
       </div>
 
+      <div class="personal-options-row">
+        <div class="personal-option-group">
+          <label class="personal-option-label">Frequency</label>
+          <div class="personal-chips" id="personalFrequencyChips">
+            <button class="personal-chip active" data-frequency="once">One Time</button>
+            <button class="personal-chip" data-frequency="daily">Daily</button>
+            <button class="personal-chip" data-frequency="weekly">Weekly</button>
+          </div>
+        </div>
+        <div class="personal-option-group">
+          <label class="personal-option-label">Priority</label>
+          <div class="personal-chips" id="personalPriorityChips">
+            <button class="personal-chip active" data-priority="none">None</button>
+            <button class="personal-chip" data-priority="low">Low</button>
+            <button class="personal-chip" data-priority="medium">Med</button>
+            <button class="personal-chip" data-priority="high">High</button>
+          </div>
+        </div>
+      </div>
+
       <div class="personal-list" id="personalList">
         <div class="empty-state">
           <div class="empty-icon">
@@ -461,7 +476,7 @@
   <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
       <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;">Question <span id="questionNumber">1</span></div>
-      <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--amber);" id="questionTimer">00:00</div>
+      <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--indigo);" id="questionTimer">00:00</div>
     </div>
     <div class="session-controls">
       <button class="btn-session-end" id="btnSkipQuestion" style="font-size:13px;">Skip</button>
@@ -585,7 +600,7 @@
     <button class="btn-secondary" style="flex:1;height:36px;font-size:12px;" id="csvSelectAll">Select All</button>
     <button class="btn-secondary" style="flex:1;height:36px;font-size:12px;" id="csvDeselectAll">Deselect All</button>
   </div>
-  <div class="csv-import-list" id="csvImportList" style="padding:0 16px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+  <div class="csv-import-list" id="csvImportList" style="padding:0 16px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;"></div>
   <div class="sheet-actions" style="padding:16px 20px 0;">
     <button class="btn-secondary" style="flex:1" onclick="App.closeSheet()">Cancel</button>
     <button class="btn-primary" style="flex:2" id="csvImportConfirm">Import Selected</button>
