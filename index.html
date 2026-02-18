@@ -24,10 +24,14 @@
 
     <!-- ════════════ HOME TAB ════════════ -->
     <div class="tab-panel active" id="tab-home">
+      <!-- Greeting (outside card) -->
+      <div class="home-greeting-outside">
+        <div class="greeting-label" id="greeting">Good morning</div>
+      </div>
+
       <div class="home-time-card">
       <div class="home-header">
         <div class="greeting-block">
-          <div class="greeting-label" id="greeting">Good morning</div>
           <div class="live-time" id="liveTime">--:--</div>
           <div class="live-date" id="liveDate">Loading...</div>
         </div>
@@ -37,13 +41,14 @@
           </svg>
         </button>
       </div>
+      </div><!-- end home-time-card -->
 
-      <!-- Motivational Quote -->
+      <!-- Motivational Quote (outside card) -->
       <div class="quote-container" id="quoteContainer">
         <div class="quote-text" id="quoteText"></div>
       </div>
 
-      <!-- Countdown Ring -->
+      <!-- Countdown Ring (outside card) -->
       <div class="ring-container">
         <div class="ring-wrapper">
           <svg class="ring-svg" viewBox="0 0 168 168">
@@ -58,7 +63,6 @@
           </div>
         </div>
       </div>
-      </div><!-- end home-time-card -->
 
       <!-- Completion Strip -->
       <div class="completion-strip">
@@ -245,6 +249,21 @@
         <div class="personal-sub">Quick notes & to-dos (separate from study tracking)</div>
       </div>
 
+      <div class="personal-stats" id="personalStats">
+        <div class="personal-stat-chip">
+          <div class="personal-stat-value" id="personalTotal">0</div>
+          <div class="personal-stat-label">Total</div>
+        </div>
+        <div class="personal-stat-chip">
+          <div class="personal-stat-value" id="personalPending">0</div>
+          <div class="personal-stat-label">Pending</div>
+        </div>
+        <div class="personal-stat-chip">
+          <div class="personal-stat-value" id="personalDone">0</div>
+          <div class="personal-stat-label">Done</div>
+        </div>
+      </div>
+
       <div class="personal-add-box">
         <input type="text" class="personal-input" id="personalInput" placeholder="Add personal task..." maxlength="200">
         <button class="btn-personal-add" id="btnAddPersonal">
@@ -375,13 +394,10 @@
         </div>
       </div>
 
-      <!-- Supabase Config -->
+      <!-- Supabase Status -->
       <div class="settings-group">
-        <div class="settings-group-label">Supabase (Optional Cloud Sync)</div>
+        <div class="settings-group-label">Cloud Sync (Supabase)</div>
         <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:10px;">
-          <input class="form-input" id="sbUrl" placeholder="Supabase Project URL" style="margin:0">
-          <input class="form-input" id="sbKey" placeholder="Supabase Anon Key" type="password" style="margin:0">
-          <button class="btn-primary" style="height:44px;font-size:13px;" onclick="App.saveSupabaseConfig()">Connect Supabase</button>
           <div class="supabase-status" id="supabaseStatus"></div>
         </div>
       </div>
@@ -442,12 +458,12 @@
   </div>
 
   <!-- Per-question controls (hidden by default) -->
-  <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;padding:0 20px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+  <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
       <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;">Question <span id="questionNumber">1</span></div>
-      <div style="font-family:var(--font-mono);font-size:14px;color:var(--text-2);" id="questionTimer">00:00</div>
+      <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--amber);" id="questionTimer">00:00</div>
     </div>
-    <div class="session-controls" style="margin-top:0;">
+    <div class="session-controls">
       <button class="btn-session-end" id="btnSkipQuestion" style="font-size:13px;">Skip</button>
       <button class="btn-session-pause" id="btnNextQuestion" style="font-size:13px;">Next Question</button>
     </div>
