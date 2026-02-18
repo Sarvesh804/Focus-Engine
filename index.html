@@ -38,13 +38,6 @@
       </div>
       </div><!-- end home-time-card -->
 
-      <!-- Hidden elements for JS compatibility -->
-      <div id="greeting" style="display:none">Good morning</div>
-      <div id="quoteText" style="display:none"></div>
-      <div id="ringProgress" style="display:none"></div>
-      <div id="ringValue" style="display:none"></div>
-      <div id="ringEnd" style="display:none"></div>
-
       <!-- Completion Strip -->
       <div class="completion-strip">
         <div class="completion-bar-wrap">
@@ -250,10 +243,10 @@
       </div>
 
       <!-- Personal task filters -->
-      <div class="personal-filters">
-        <button class="personal-filter-btn active" data-filter="all" onclick="App.filterPersonalTasks('all',this)">All</button>
-        <button class="personal-filter-btn" data-filter="active" onclick="App.filterPersonalTasks('active',this)">Active</button>
-        <button class="personal-filter-btn" data-filter="completed" onclick="App.filterPersonalTasks('completed',this)">Done</button>
+      <div class="personal-filters" role="group" aria-label="Task filters">
+        <button class="personal-filter-btn active" data-filter="all" aria-pressed="true" onclick="App.filterPersonalTasks('all',this)">All</button>
+        <button class="personal-filter-btn" data-filter="active" aria-pressed="false" onclick="App.filterPersonalTasks('active',this)">Active</button>
+        <button class="personal-filter-btn" data-filter="completed" aria-pressed="false" onclick="App.filterPersonalTasks('completed',this)">Done</button>
       </div>
 
       <div class="personal-list" id="personalList">

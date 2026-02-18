@@ -542,26 +542,21 @@ const App = (() => {
     const now = new Date();
     const h = now.getHours(), m = now.getMinutes();
 
-    document.getElementById('liveTime').textContent =
-      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const timeEl = document.getElementById('liveTime');
+    if (timeEl) timeEl.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 
-    document.getElementById('liveDate').textContent =
-      now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
-
-    // Update hidden elements for backward compatibility
-    const greetingEl = document.getElementById('greeting');
-    if (greetingEl) {
-      const name = state.settings.userName;
-      const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-      greetingEl.textContent = name ? `${g}, ${name}` : g;
-    }
+    const dateEl = document.getElementById('liveDate');
+    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
   }
 
   // ─── Motivational Quote Engine ─────────────────────────────────────────
   
   function loadRandomQuote() {
-    const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-    document.getElementById('quoteText').textContent = quote;
+    const el = document.getElementById('quoteText');
+    if (el) {
+      const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+      el.textContent = quote;
+    }
   }
 
   // ─── Home Rendering ────────────────────────────────────────────────────
@@ -965,8 +960,14 @@ const App = (() => {
 
   function filterPersonalTasks(filter, btn) {
     personalFilter = filter;
-    document.querySelectorAll('.personal-filter-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.personal-filter-btn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    if (btn) {
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+    }
     renderPersonal();
   }
 
@@ -1721,10 +1722,11 @@ const App = (() => {
     const dayKeys = Object.keys(csvParsedData);
     let addedDays = 0, addedTasks = 0;
 
-    dayKeys.forEach((dayKey, i) => {
+    for (let i = 0; i < dayKeys.length; i++) {
+      const dayKey = dayKeys[i];
       const safeKey = `csvday-${i}`;
       const dayCheck = document.querySelector(`[data-day-check="${safeKey}"]`);
-      if (!dayCheck || !dayCheck.classList.contains('checked')) return;
+      if (!dayCheck || !dayCheck.classList.contains('checked')) continue;
 
       const dateInput = document.querySelector(`[data-day-date="${safeKey}"]`);
       const dateStr = dateInput ? dateInput.value : todayStr();
@@ -1739,7 +1741,7 @@ const App = (() => {
         }
       });
 
-      if (selectedTasks.length === 0) return;
+      if (selectedTasks.length === 0) continue;
 
       const day = {
         id: uid(),
@@ -1749,7 +1751,7 @@ const App = (() => {
       };
 
       state.days.push(day);
-      Supa.insertDay(day);
+      await Supa.insertDay(day);
       addedDays++;
 
       for (const row of selectedTasks) {
@@ -1763,10 +1765,10 @@ const App = (() => {
           created_at: new Date().toISOString()
         };
         state.tasks.push(task);
-        Supa.insertTask(task);
+        await Supa.insertTask(task);
         addedTasks++;
       }
-    });
+    }
 
     DB.save();
     csvParsedData = null;
@@ -1924,24 +1926,16 @@ const App = (() => {
   }
 
   async function saveSupabaseConfig() {
-    const url = document.getElementById('sbUrl').value.trim();
-    const key = document.getElementById('sbKey').value.trim();
-    
-    if (!url || !key) {
-      showSupabaseStatus('Enter both URL and key', 'error');
-      return;
-    }
-
+    // Credentials are now hardcoded - this function is kept for backward compatibility
     showSupabaseStatus('Connecting...', 'info');
 
-    const initResult = await Supa.init(url, key);
+    const initResult = await Supa.init(SUPABASE_URL, SUPABASE_KEY);
     
     if (!initResult.success) {
       showSupabaseStatus(`Connection failed: ${initResult.error}`, 'error');
       return;
     }
 
-    state.settings.supabase = { url, key };
     DB.save();
 
     showSupabaseStatus('Connected! Syncing data...', 'info');

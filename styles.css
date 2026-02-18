@@ -180,7 +180,7 @@ input, textarea, select { font-family: var(--font-body); }
 
 /* Completion Strip */
 .completion-strip {
-  margin: 0 20px 20px;
+  margin: 0 16px 16px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1775,8 +1775,10 @@ input, textarea, select { font-family: var(--font-body); }
 .tab-panel.active { animation: fadeSlideUp 0.25s cubic-bezier(0.4,0,0.2,1); }
 
 /* ─── Home card refined ────────────────────── */
+.greeting-block { flex: 1; }
+
 .home-time-card {
-  margin: 16px 16px 16px;
+  margin: 16px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
