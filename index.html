@@ -24,6 +24,7 @@
 
     <!-- ════════════ HOME TAB ════════════ -->
     <div class="tab-panel active" id="tab-home">
+      <div class="home-time-card">
       <div class="home-header">
         <div class="greeting-block">
           <div class="greeting-label" id="greeting">Good morning</div>
@@ -57,6 +58,7 @@
           </div>
         </div>
       </div>
+      </div><!-- end home-time-card -->
 
       <!-- Completion Strip -->
       <div class="completion-strip">
@@ -218,6 +220,14 @@
         </div>
       </div>
 
+      <!-- Subject Analytics -->
+      <div class="section-header" style="padding-top:4px;">
+        <div class="section-title">Subject Analytics</div>
+      </div>
+      <div id="subjectAnalytics" style="padding:0 16px 16px;">
+        <div style="font-size:13px;color:var(--text-3);text-align:center;padding:10px 0">No per-question data yet</div>
+      </div>
+
       <!-- Encouragement card -->
       <div class="encourage-card">
         <div class="encourage-text" id="encourageText">
@@ -261,6 +271,18 @@
     <div class="tab-panel" id="tab-settings">
       <div class="settings-header">
         <div class="settings-title">Settings</div>
+      </div>
+
+      <!-- User Profile -->
+      <div class="settings-group">
+        <div class="settings-group-label">Profile</div>
+        <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div class="setting-label-wrap">
+            <div class="setting-label">Your Name</div>
+            <div class="setting-desc">Used for personalized greetings</div>
+          </div>
+          <input class="form-input" id="settingUserName" placeholder="Enter your name" maxlength="40" style="margin:0">
+        </div>
       </div>
 
       <!-- Day Config -->
@@ -418,6 +440,28 @@
     <button class="btn-session-end" id="btnEndSession">End Session</button>
     <button class="btn-session-pause" id="btnPauseSession">Pause</button>
   </div>
+
+  <!-- Per-question controls (hidden by default) -->
+  <div class="per-question-panel" id="perQuestionPanel" style="display:none;width:100%;padding:0 20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;">Question <span id="questionNumber">1</span></div>
+      <div style="font-family:var(--font-mono);font-size:14px;color:var(--text-2);" id="questionTimer">00:00</div>
+    </div>
+    <div class="session-controls" style="margin-top:0;">
+      <button class="btn-session-end" id="btnSkipQuestion" style="font-size:13px;">Skip</button>
+      <button class="btn-session-pause" id="btnNextQuestion" style="font-size:13px;">Next Question</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SESSION SUMMARY OVERLAY ═══ -->
+<div class="session-summary-overlay" id="sessionSummaryOverlay">
+  <div class="summary-title" id="summaryTitle">Session Complete</div>
+  <div class="summary-stats" id="summaryStats"></div>
+  <div id="summaryDetails"></div>
+  <div style="padding:20px 0;">
+    <button class="btn-primary" onclick="App.closeSummary()">Done</button>
+  </div>
 </div>
 
 <!-- ═══ SHEET BACKDROP ═══ -->
@@ -482,6 +526,31 @@
   </div>
 </div>
 
+<!-- ═══ SESSION MODE SHEET ═══ -->
+<div class="bottom-sheet" id="sheetSessionMode">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Choose Session Mode</div>
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px;">
+    <div class="session-pick-item" onclick="App.startSessionWithMode('full')">
+      <div class="pick-dot" style="background:var(--indigo)"></div>
+      <div class="pick-info">
+        <div class="pick-subj" style="color:var(--indigo)">Full Session</div>
+        <div class="pick-topic">Track total time for the session</div>
+      </div>
+    </div>
+    <div class="session-pick-item" onclick="App.startSessionWithMode('perQuestion')">
+      <div class="pick-dot" style="background:var(--amber)"></div>
+      <div class="pick-info">
+        <div class="pick-subj" style="color:var(--amber)">Time Each Question</div>
+        <div class="pick-topic">Track time per individual question</div>
+      </div>
+    </div>
+  </div>
+  <div style="padding:16px 16px 0;">
+    <button class="btn-secondary" style="width:100%" onclick="App.closeSheet()">Cancel</button>
+  </div>
+</div>
+
 <!-- ═══ REASSIGN SHEET ═══ -->
 <div class="bottom-sheet" id="sheetReassign">
   <div class="sheet-handle"></div>
@@ -489,6 +558,21 @@
   <div id="reassignDayList" style="padding:0 16px;max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
   <div style="padding:16px 16px 0;">
     <button class="btn-secondary" style="width:100%" onclick="App.closeSheet()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══ CSV IMPORT SELECTION SHEET ═══ -->
+<div class="bottom-sheet csv-import-sheet" id="sheetCSVImport">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Import Study Plan</div>
+  <div class="csv-import-controls" style="padding:0 20px 12px;display:flex;gap:8px;">
+    <button class="btn-secondary" style="flex:1;height:36px;font-size:12px;" id="csvSelectAll">Select All</button>
+    <button class="btn-secondary" style="flex:1;height:36px;font-size:12px;" id="csvDeselectAll">Deselect All</button>
+  </div>
+  <div class="csv-import-list" id="csvImportList" style="padding:0 16px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+  <div class="sheet-actions" style="padding:16px 20px 0;">
+    <button class="btn-secondary" style="flex:1" onclick="App.closeSheet()">Cancel</button>
+    <button class="btn-primary" style="flex:2" id="csvImportConfirm">Import Selected</button>
   </div>
 </div>
 
