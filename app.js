@@ -16,6 +16,9 @@ const App = (() => {
     'Other':    '#6b7294',
   };
 
+  const SUPABASE_URL = 'https://vfgcmesgcfbmokmaseht.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_rxg1Jo-WFkLJt21207wv3w_04eGdsGZ';
+
   const QUOTES = [
     "Start small. Momentum beats motivation.",
     "Clarity follows action, not overthinking.",
@@ -147,6 +150,7 @@ const App = (() => {
   let deferredInstallPrompt = null;
   let clockRef = null;
   let csvParsedData = null;
+  let csvSelection = {};  // track selection state: { dayKey: { selected: bool, tasks: [bool,...], date: string } }
 
   // ─── LocalStorage ──────────────────────────────────────────────────────
   
@@ -467,6 +471,11 @@ const App = (() => {
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  }
+
+  function parseLocalDate(dateStr) {
+    if (!dateStr) return new Date();
+    return new Date(dateStr + 'T00:00:00');
   }
 
   function fmtTime(secs) {
@@ -857,28 +866,72 @@ const App = (() => {
         }).join('');
     }
 
-    // Render subject analytics
+    // Render subject analytics — subject buttons with topic-level detail
     const analyticsEl = document.getElementById('subjectAnalytics');
     if (analyticsEl) {
       if (state.questionAnalytics.length === 0) {
         analyticsEl.innerHTML = '<div style="font-size:13px;color:var(--text-3);text-align:center;padding:10px 0">No per-question data yet</div>';
       } else {
+        // Build cumulative subject → topic data
         const subjData = {};
         state.questionAnalytics.forEach(qa => {
-          if (!subjData[qa.subject]) subjData[qa.subject] = { totalQ: 0, totalSecs: 0, sessions: 0 };
-          subjData[qa.subject].totalQ += qa.questions.length;
-          subjData[qa.subject].totalSecs += qa.questions.reduce((a, q) => a + q.seconds, 0);
-          subjData[qa.subject].sessions++;
+          const subj = qa.subject;
+          if (!subjData[subj]) subjData[subj] = { topics: {}, totalQ: 0, totalSecs: 0, sessions: 0 };
+          subjData[subj].totalQ += qa.questions.length;
+          subjData[subj].totalSecs += qa.questions.reduce((a, q) => a + q.seconds, 0);
+          subjData[subj].sessions++;
+
+          const topicName = qa.topic || 'General';
+          if (!subjData[subj].topics[topicName]) {
+            subjData[subj].topics[topicName] = { totalQ: 0, totalSecs: 0, sessions: 0, history: [] };
+          }
+          const td = subjData[subj].topics[topicName];
+          td.totalQ += qa.questions.length;
+          td.totalSecs += qa.questions.reduce((a, q) => a + q.seconds, 0);
+          td.sessions++;
+          td.history.push({ date: qa.date, questions: qa.questions.length, avgSecs: qa.questions.length > 0 ? Math.round(qa.questions.reduce((a, q) => a + q.seconds, 0) / qa.questions.length) : 0 });
         });
 
         analyticsEl.innerHTML = Object.entries(subjData).map(([subj, data]) => {
           const color = SUBJECT_COLORS[subj] || SUBJECT_COLORS.Other;
           const avgPerQ = data.totalQ > 0 ? Math.round(data.totalSecs / data.totalQ) : 0;
           const safeKey = encodeURIComponent(subj).replace(/[^a-zA-Z0-9]/g, '_');
+
+          const topicsHtml = Object.entries(data.topics).map(([topic, tData]) => {
+            const topicKey = safeKey + '_' + encodeURIComponent(topic).replace(/[^a-zA-Z0-9]/g, '_');
+            const tAvg = tData.totalQ > 0 ? Math.round(tData.totalSecs / tData.totalQ) : 0;
+            const historyHtml = tData.history.map(h =>
+              `<div class="analytics-history-row"><span class="analytics-history-date">${h.date}</span><span class="analytics-history-stat">${h.questions}Q · avg ${fmtTime(h.avgSecs)}</span></div>`
+            ).join('');
+
+            return `<div class="topic-analytics-item" id="ta-${topicKey}">
+              <div class="topic-analytics-header" onclick="document.getElementById('ta-${topicKey}').classList.toggle('expanded')">
+                <svg class="topic-analytics-arrow" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
+                <div class="topic-analytics-name">${topic}</div>
+              </div>
+              <div class="topic-analytics-body">
+                <div class="analytics-metric-row">
+                  <div class="analytics-metric-label">Total Questions</div>
+                  <div class="analytics-metric-value">${tData.totalQ}</div>
+                </div>
+                <div class="analytics-metric-row">
+                  <div class="analytics-metric-label">Avg Time / Question</div>
+                  <div class="analytics-metric-value">${fmtTime(tAvg)}</div>
+                </div>
+                <div class="analytics-metric-row">
+                  <div class="analytics-metric-label">Sessions</div>
+                  <div class="analytics-metric-value">${tData.sessions}</div>
+                </div>
+                ${historyHtml ? '<div class="analytics-history-title">History</div>' + historyHtml : ''}
+              </div>
+            </div>`;
+          }).join('');
+
           return `<div class="subject-analytics-card" id="sa-${safeKey}">
             <div class="subject-analytics-header" onclick="App.toggleSubjectAnalytics('${safeKey}')">
               <div class="subject-analytics-dot" style="background:${color}"></div>
               <div class="subject-analytics-name">${subj}</div>
+              <div class="subject-analytics-summary">${data.totalQ}Q · ${fmtTime(avgPerQ)} avg</div>
               <svg class="subject-analytics-chevron" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
             </div>
             <div class="subject-analytics-body">
@@ -893,6 +946,10 @@ const App = (() => {
               <div class="analytics-metric-row">
                 <div class="analytics-metric-label">Sessions</div>
                 <div class="analytics-metric-value">${data.sessions}</div>
+              </div>
+              <div class="subject-topics-section">
+                <div class="subject-topics-title">Topics</div>
+                ${topicsHtml}
               </div>
             </div>
           </div>`;
@@ -920,6 +977,17 @@ const App = (() => {
   function renderPersonal() {
     const list = document.getElementById('personalList');
     
+    // Update stats
+    const total = state.personalTasks.length;
+    const done = state.personalTasks.filter(t => t.completed).length;
+    const pending = total - done;
+    const totalEl = document.getElementById('personalTotal');
+    const pendingEl = document.getElementById('personalPending');
+    const doneEl = document.getElementById('personalDone');
+    if (totalEl) totalEl.textContent = total;
+    if (pendingEl) pendingEl.textContent = pending;
+    if (doneEl) doneEl.textContent = done;
+
     if (state.personalTasks.length === 0) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-icon">
@@ -933,19 +1001,27 @@ const App = (() => {
       return;
     }
 
-    list.innerHTML = state.personalTasks.map(task => `
-      <div class="personal-item">
+    // Sort: pending first, then completed
+    const sorted = [...state.personalTasks].sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
+
+    list.innerHTML = sorted.map(task => {
+      const dateLabel = task.date ? parseLocalDate(task.date).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
+      return `<div class="personal-item ${task.completed ? 'completed' : ''}">
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
           ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
         </div>
         <div class="personal-text ${task.completed ? 'done' : ''}">${task.text}</div>
+        ${dateLabel ? `<div class="personal-date">${dateLabel}</div>` : ''}
         <button class="personal-delete" onclick="App.deletePersonalTask('${task.id}')">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
           </svg>
         </button>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
   // ─── Settings Rendering ────────────────────────────────────────────────
@@ -967,9 +1043,6 @@ const App = (() => {
     document.querySelectorAll('.theme-chip').forEach(c => {
       c.classList.toggle('active', c.dataset.theme === state.settings.theme);
     });
-
-    const sc = state.settings.supabase || {};
-    if (sc.url) document.getElementById('sbUrl').value = sc.url;
   }
 
   function setToggleState(id, on) {
@@ -1332,7 +1405,14 @@ const App = (() => {
       }
     }
 
-    const finalElapsed = session.elapsed;
+    // Recompute final elapsed accounting for pauses
+    if (session.paused) {
+      // If ending while paused, account for the paused time
+      const pausedDuration = Date.now() - session.pausedAt;
+      session.startTime += pausedDuration;
+      session.paused = false;
+    }
+    const finalElapsed = Math.floor((Date.now() - session.startTime) / 1000);
     document.getElementById('sessionOverlay').classList.remove('active');
     document.getElementById('perQuestionPanel').style.display = 'none';
 
@@ -1562,31 +1642,57 @@ const App = (() => {
   function showCSVSelectionUI(dayGroups) {
     const dayKeys = Object.keys(dayGroups);
     const baseDate = new Date();
-    const listEl = document.getElementById('csvImportList');
 
-    listEl.innerHTML = dayKeys.map((dayKey, i) => {
-      const localDate = new Date();
-      localDate.setDate(baseDate.getDate() + i);
+    // Initialize selection state — all selected by default
+    csvSelection = {};
+    dayKeys.forEach((dayKey, i) => {
+      const localDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + i);
       const y = localDate.getFullYear();
       const m = String(localDate.getMonth() + 1).padStart(2, '0');
       const d = String(localDate.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${d}`;
-      const tasks = dayGroups[dayKey];
+      csvSelection[dayKey] = {
+        selected: true,
+        tasks: dayGroups[dayKey].map(() => true),
+        date: `${y}-${m}-${d}`
+      };
+    });
 
-      return `<div class="csv-day-group" data-day-key="${dayKey}">
-        <div class="csv-day-header" onclick="App.toggleCSVDay('${dayKey}')">
-          <div class="csv-day-check checked" data-day-check="${dayKey}">
-            <svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
+    renderCSVSelectionList(dayGroups);
+    openSheet('sheetCSVImport');
+  }
+
+  function renderCSVSelectionList(dayGroups) {
+    const dayKeys = Object.keys(dayGroups || csvParsedData || {});
+    const listEl = document.getElementById('csvImportList');
+    if (!listEl) return;
+
+    const data = dayGroups || csvParsedData;
+    if (!data) return;
+
+    listEl.innerHTML = dayKeys.map((dayKey, dayIdx) => {
+      const sel = csvSelection[dayKey];
+      if (!sel) return '';
+      const tasks = data[dayKey];
+      const dayChecked = sel.selected;
+
+      const checkSvg12 = '<svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>';
+      const checkSvg10 = '<svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>';
+
+      return `<div class="csv-day-group" data-day-idx="${dayIdx}">
+        <div class="csv-day-header" onclick="App.toggleCSVDay(${dayIdx})">
+          <div class="csv-day-check ${dayChecked ? 'checked' : ''}" data-day-check="${dayIdx}">
+            ${dayChecked ? checkSvg12 : ''}
           </div>
           <div class="csv-day-label">${dayKey}</div>
-          <input type="date" class="csv-day-date-input" data-day-date="${dayKey}" value="${dateStr}" onclick="event.stopPropagation()">
+          <input type="date" class="csv-day-date-input" data-day-date="${dayIdx}" value="${sel.date}" onclick="event.stopPropagation()" onchange="App.updateCSVDayDate(${dayIdx}, this.value)">
         </div>
         <div class="csv-task-list">
           ${tasks.map((row, idx) => {
             const color = SUBJECT_COLORS[row.subject.trim()] || SUBJECT_COLORS.Other;
-            return `<div class="csv-task-item" data-task-key="${dayKey}-${idx}">
-              <div class="csv-task-check checked" data-task-check="${dayKey}-${idx}" onclick="App.toggleCSVTask('${dayKey}',${idx})">
-                <svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
+            const taskChecked = sel.tasks[idx];
+            return `<div class="csv-task-item" data-task-idx="${dayIdx}-${idx}">
+              <div class="csv-task-check ${taskChecked ? 'checked' : ''}" data-task-check="${dayIdx}-${idx}" onclick="App.toggleCSVTask(${dayIdx},${idx})">
+                ${taskChecked ? checkSvg10 : ''}
               </div>
               <div class="csv-task-info">
                 <div class="csv-task-subj" style="color:${color}">${row.subject.trim()}</div>
@@ -1598,33 +1704,37 @@ const App = (() => {
         </div>
       </div>`;
     }).join('');
-
-    openSheet('sheetCSVImport');
   }
 
-  function toggleCSVDay(dayKey) {
-    const check = document.querySelector(`[data-day-check="${dayKey}"]`);
-    if (!check) return;
-    const isChecked = check.classList.contains('checked');
-    check.classList.toggle('checked', !isChecked);
-    check.innerHTML = !isChecked ? '<svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
-
-    // Toggle all tasks in this day
-    const group = document.querySelector(`[data-day-key="${dayKey}"]`);
-    if (group) {
-      group.querySelectorAll('.csv-task-check').forEach(tc => {
-        tc.classList.toggle('checked', !isChecked);
-        tc.innerHTML = !isChecked ? '<svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
-      });
+  function updateCSVDayDate(dayIdx, value) {
+    const dayKeys = Object.keys(csvParsedData || {});
+    const dayKey = dayKeys[dayIdx];
+    if (dayKey && csvSelection[dayKey]) {
+      csvSelection[dayKey].date = value;
     }
   }
 
-  function toggleCSVTask(dayKey, idx) {
-    const check = document.querySelector(`[data-task-check="${dayKey}-${idx}"]`);
-    if (!check) return;
-    const isChecked = check.classList.contains('checked');
-    check.classList.toggle('checked', !isChecked);
-    check.innerHTML = !isChecked ? '<svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : '';
+  function toggleCSVDay(dayIdx) {
+    const dayKeys = Object.keys(csvParsedData || {});
+    const dayKey = dayKeys[dayIdx];
+    if (!dayKey || !csvSelection[dayKey]) return;
+
+    const sel = csvSelection[dayKey];
+    sel.selected = !sel.selected;
+    sel.tasks = sel.tasks.map(() => sel.selected);
+    renderCSVSelectionList(csvParsedData);
+  }
+
+  function toggleCSVTask(dayIdx, taskIdx) {
+    const dayKeys = Object.keys(csvParsedData || {});
+    const dayKey = dayKeys[dayIdx];
+    if (!dayKey || !csvSelection[dayKey]) return;
+
+    const sel = csvSelection[dayKey];
+    sel.tasks[taskIdx] = !sel.tasks[taskIdx];
+    // Update day checkbox if all tasks are deselected/selected
+    sel.selected = sel.tasks.some(t => t);
+    renderCSVSelectionList(csvParsedData);
   }
 
   async function confirmCSVImport() {
@@ -1633,18 +1743,17 @@ const App = (() => {
     let addedDays = 0, addedTasks = 0;
 
     for (const dayKey of dayKeys) {
-      const dayCheck = document.querySelector(`[data-day-check="${dayKey}"]`);
-      if (!dayCheck || !dayCheck.classList.contains('checked')) continue;
+      const sel = csvSelection[dayKey];
+      if (!sel || !sel.selected) continue;
 
-      const dateInput = document.querySelector(`[data-day-date="${dayKey}"]`);
-      const dateStr = dateInput ? dateInput.value : todayStr();
+      // Use STRICT local date from selection state
+      const dateStr = sel.date || todayStr();
 
       const dayTasks = csvParsedData[dayKey];
       const selectedTasks = [];
 
       dayTasks.forEach((row, idx) => {
-        const taskCheck = document.querySelector(`[data-task-check="${dayKey}-${idx}"]`);
-        if (taskCheck && taskCheck.classList.contains('checked')) {
+        if (sel.tasks[idx]) {
           selectedTasks.push(row);
         }
       });
@@ -1680,6 +1789,7 @@ const App = (() => {
 
     DB.save();
     csvParsedData = null;
+    csvSelection = {};
     closeSheet();
     renderPlan();
     renderHome();
@@ -1827,25 +1937,14 @@ const App = (() => {
   }
 
   async function saveSupabaseConfig() {
-    const url = document.getElementById('sbUrl').value.trim();
-    const key = document.getElementById('sbKey').value.trim();
-    
-    if (!url || !key) {
-      showSupabaseStatus('Enter both URL and key', 'error');
-      return;
-    }
-
     showSupabaseStatus('Connecting...', 'info');
 
-    const initResult = await Supa.init(url, key);
+    const initResult = await Supa.init(SUPABASE_URL, SUPABASE_KEY);
     
     if (!initResult.success) {
       showSupabaseStatus(`Connection failed: ${initResult.error}`, 'error');
       return;
     }
-
-    state.settings.supabase = { url, key };
-    DB.save();
 
     showSupabaseStatus('Connected! Syncing data...', 'info');
 
@@ -1997,20 +2096,23 @@ const App = (() => {
     const csvSelectAll = document.getElementById('csvSelectAll');
     if (csvSelectAll) {
       csvSelectAll.addEventListener('click', () => {
-        document.querySelectorAll('.csv-day-check, .csv-task-check').forEach(c => {
-          c.classList.add('checked');
-          const size = c.classList.contains('csv-day-check') ? 12 : 10;
-          c.innerHTML = `<svg width="${size}" height="${size}" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>`;
+        if (!csvParsedData) return;
+        Object.keys(csvSelection).forEach(key => {
+          csvSelection[key].selected = true;
+          csvSelection[key].tasks = csvSelection[key].tasks.map(() => true);
         });
+        renderCSVSelectionList(csvParsedData);
       });
     }
     const csvDeselectAll = document.getElementById('csvDeselectAll');
     if (csvDeselectAll) {
       csvDeselectAll.addEventListener('click', () => {
-        document.querySelectorAll('.csv-day-check, .csv-task-check').forEach(c => {
-          c.classList.remove('checked');
-          c.innerHTML = '';
+        if (!csvParsedData) return;
+        Object.keys(csvSelection).forEach(key => {
+          csvSelection[key].selected = false;
+          csvSelection[key].tasks = csvSelection[key].tasks.map(() => false);
         });
+        renderCSVSelectionList(csvParsedData);
       });
     }
     const csvConfirm = document.getElementById('csvImportConfirm');
@@ -2063,16 +2165,15 @@ const App = (() => {
   }
 
   async function trySupabaseInit() {
-    const sc = state.settings.supabase;
-    if (sc && sc.url && sc.key) {
-      const result = await Supa.init(sc.url, sc.key);
-      if (result.success) {
-        showSupabaseStatus('Reconnected to Supabase', 'success');
-        Supa.syncDays();
-        Supa.syncTasks();
-        Supa.syncSessions();
-        Supa.syncPersonalTasks();
-      }
+    const result = await Supa.init(SUPABASE_URL, SUPABASE_KEY);
+    if (result.success) {
+      showSupabaseStatus('Connected to Supabase', 'success');
+      Supa.syncDays();
+      Supa.syncTasks();
+      Supa.syncSessions();
+      Supa.syncPersonalTasks();
+    } else {
+      showSupabaseStatus('Supabase offline — data saved locally', 'info');
     }
   }
 
@@ -2110,6 +2211,7 @@ const App = (() => {
     deletePersonalTask,
     toggleCSVDay,
     toggleCSVTask,
+    updateCSVDayDate,
     confirmCSVImport,
     nextQuestion,
     skipQuestion,
