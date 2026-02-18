@@ -2127,7 +2127,8 @@ const App = (() => {
       });
     });
 
-    document.getElementById('btnInstall').addEventListener('click', handleInstall);
+    const btnInstallEl = document.getElementById('btnInstall');
+    if (btnInstallEl) btnInstallEl.addEventListener('click', handleInstall);
     document.getElementById('btnClearData').addEventListener('click', clearData);
 
     ['settingEndTime', 'settingStartTime'].forEach(id => {
