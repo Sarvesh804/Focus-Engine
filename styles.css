@@ -1425,6 +1425,7 @@ input, textarea, select { font-family: var(--font-body); }
   display: flex;
   gap: 6px;
   flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .personal-chip {
