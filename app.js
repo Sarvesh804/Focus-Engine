@@ -874,8 +874,9 @@ const App = (() => {
         analyticsEl.innerHTML = Object.entries(subjData).map(([subj, data]) => {
           const color = SUBJECT_COLORS[subj] || SUBJECT_COLORS.Other;
           const avgPerQ = data.totalQ > 0 ? Math.round(data.totalSecs / data.totalQ) : 0;
-          return `<div class="subject-analytics-card" id="sa-${subj.replace(/\s/g,'')}">
-            <div class="subject-analytics-header" onclick="App.toggleSubjectAnalytics('${subj.replace(/\s/g,'')}')">
+          const safeKey = encodeURIComponent(subj).replace(/[^a-zA-Z0-9]/g, '_');
+          return `<div class="subject-analytics-card" id="sa-${safeKey}">
+            <div class="subject-analytics-header" onclick="App.toggleSubjectAnalytics('${safeKey}')">
               <div class="subject-analytics-dot" style="background:${color}"></div>
               <div class="subject-analytics-name">${subj}</div>
               <svg class="subject-analytics-chevron" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
