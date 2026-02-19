@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_study_tasks_day_id ON study_tasks(day_id);
-CREATE INDEX IF NOT EXISTS idx_focus_sessions_date ON focus_sessions(session_date);
+CREATE INDEX IF NOT EXISTS idx_focus_sessions_session_date ON focus_sessions(session_date);
 CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_id ON focus_sessions(task_id);
 CREATE INDEX IF NOT EXISTS idx_question_analytics_session_id ON question_analytics("sessionId");
 CREATE INDEX IF NOT EXISTS idx_personal_tasks_date ON personal_tasks("date");
