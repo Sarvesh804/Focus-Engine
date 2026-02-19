@@ -218,7 +218,7 @@ const App = (() => {
         if (!remoteIds.has(item.id)) {
           try {
             await Supa.client.from(table).upsert(item, { onConflict: 'id' });
-          } catch(e) { /* ignore individual push errors */ }
+          } catch(e) { console.warn('[Supa] push failed:', table, item.id, e.message); }
         }
       }
     },

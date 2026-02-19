@@ -34,15 +34,14 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Question Analytics (per-question timing data)
+-- Question Analytics (per-session question timing data, stored as JSON array)
 CREATE TABLE IF NOT EXISTS question_analytics (
   id TEXT PRIMARY KEY,
-  session_id TEXT,
+  "sessionId" TEXT,
   subject TEXT,
   topic TEXT,
-  question_number INTEGER,
-  time_seconds NUMERIC DEFAULT 0,
-  status TEXT DEFAULT 'answered',
+  date TEXT,
+  questions JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -70,7 +69,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 CREATE INDEX IF NOT EXISTS idx_study_tasks_day_id ON study_tasks(day_id);
 CREATE INDEX IF NOT EXISTS idx_focus_sessions_date ON focus_sessions(date);
 CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_id ON focus_sessions(task_id);
-CREATE INDEX IF NOT EXISTS idx_question_analytics_session_id ON question_analytics(session_id);
+CREATE INDEX IF NOT EXISTS idx_question_analytics_session_id ON question_analytics("sessionId");
 CREATE INDEX IF NOT EXISTS idx_personal_tasks_date ON personal_tasks(date);
 
 -- Enable Row Level Security (optional — adjust policies as needed)
@@ -81,7 +80,9 @@ ALTER TABLE question_analytics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE personal_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
--- Allow public access (for anon key usage — tighten as needed)
+-- Allow public access (for anon key usage)
+-- ⚠️ WARNING: These policies allow unrestricted access. For production,
+-- replace with user-scoped policies tied to auth.uid() or similar.
 CREATE POLICY "Allow all access" ON study_days FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access" ON study_tasks FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access" ON focus_sessions FOR ALL USING (true) WITH CHECK (true);
