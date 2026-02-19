@@ -1089,7 +1089,7 @@ const App = (() => {
       return `<div class="personal-item ${task.completed ? 'completed' : ''}">
         ${prioDot}
         <div class="personal-check ${task.completed ? 'done' : ''}" onclick="App.togglePersonalTask('${task.id}')">
-          ${task.completed ? '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
+          ${task.completed ? '<svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>' : ''}
         </div>
         <div class="personal-text ${task.completed ? 'done' : ''}">${esc(task.text)}</div>
         ${freqBadge}
@@ -1364,6 +1364,10 @@ const App = (() => {
   // ─── Focus Session ─────────────────────────────────────────────────────
   
   function startSessionFlow() {
+    if (session.active) {
+      toast('A session is already running', '');
+      return;
+    }
     const today = todayStr();
     const todayDay = state.days.find(d => d.date === today);
     const pending = todayDay
@@ -1703,7 +1707,8 @@ const App = (() => {
 
       if (errors.length > 0) {
         proc.classList.remove('active');
-        toast('Validation failed', 'error');
+        const detail = errors[0] + (errors.length > 1 ? ` (+${errors.length - 1} more)` : '');
+        toast(detail, 'error');
         console.error('CSV errors:', errors);
         return;
       }
@@ -2314,11 +2319,21 @@ const App = (() => {
     const result = await Supa.init(SUPABASE_URL, SUPABASE_KEY);
     if (result.success) {
       showSupabaseStatus('Connected to Supabase', 'success');
-      Supa.syncDays();
-      Supa.syncTasks();
-      Supa.syncSessions();
-      Supa.syncPersonalTasks();
-      Supa.syncQuestionAnalytics();
+      Promise.all([
+        Supa.syncDays(),
+        Supa.syncTasks(),
+        Supa.syncSessions(),
+        Supa.syncPersonalTasks(),
+        Supa.syncQuestionAnalytics(),
+      ]).then(() => {
+        renderHome();
+        renderPlan();
+        renderBacklog();
+        renderProgress();
+        renderPersonal();
+      }).catch(err => {
+        console.warn('[Supa] sync render failed:', err);
+      });
     } else {
       showSupabaseStatus('Supabase offline — data saved locally', 'info');
     }
