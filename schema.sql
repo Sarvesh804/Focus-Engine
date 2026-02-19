@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS study_days (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
-  date TEXT NOT NULL,
+  "date" TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   subject TEXT,
   topic TEXT,
   mode TEXT DEFAULT 'full',
-  duration INTEGER DEFAULT 0,
-  date TEXT,
+  duration_seconds INTEGER DEFAULT 0,
+  session_date TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS question_analytics (
   "sessionId" TEXT,
   subject TEXT,
   topic TEXT,
-  date TEXT,
+  "date" TEXT,
   questions JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS personal_tasks (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
   completed BOOLEAN DEFAULT FALSE,
-  date TEXT,
+  "date" TEXT,
   frequency TEXT DEFAULT 'once',
   priority TEXT DEFAULT 'none',
   created_at TIMESTAMPTZ DEFAULT now()
@@ -67,10 +67,10 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_study_tasks_day_id ON study_tasks(day_id);
-CREATE INDEX IF NOT EXISTS idx_focus_sessions_date ON focus_sessions(date);
+CREATE INDEX IF NOT EXISTS idx_focus_sessions_date ON focus_sessions(session_date);
 CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_id ON focus_sessions(task_id);
 CREATE INDEX IF NOT EXISTS idx_question_analytics_session_id ON question_analytics("sessionId");
-CREATE INDEX IF NOT EXISTS idx_personal_tasks_date ON personal_tasks(date);
+CREATE INDEX IF NOT EXISTS idx_personal_tasks_date ON personal_tasks("date");
 
 -- Enable Row Level Security (optional — adjust policies as needed)
 ALTER TABLE study_days ENABLE ROW LEVEL SECURITY;
