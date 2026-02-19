@@ -198,6 +198,31 @@ const App = (() => {
       }
     },
     
+    _mergeById(local, remote) {
+      const localMap = new Map(local.map(item => [item.id, item]));
+      const merged = [...local];
+      const remoteOnly = [];
+      for (const item of remote) {
+        if (!localMap.has(item.id)) {
+          merged.push(item);
+          remoteOnly.push(item);
+        }
+      }
+      return { merged, remoteOnly };
+    },
+
+    async _pushLocalOnly(table, local, remote) {
+      if (!Supa.client) return;
+      const remoteIds = new Set(remote.map(item => item.id));
+      for (const item of local) {
+        if (!remoteIds.has(item.id)) {
+          try {
+            await Supa.client.from(table).upsert(item, { onConflict: 'id' });
+          } catch(e) { /* ignore individual push errors */ }
+        }
+      }
+    },
+
     async syncDays() {
       if (!Supa.client) return { success: false, error: 'Not connected' };
       try {
@@ -208,9 +233,12 @@ const App = (() => {
         
         if (error) throw error;
         
-        state.days = data || [];
+        const remote = data || [];
+        const { merged } = Supa._mergeById(state.days, remote);
+        state.days = merged;
         DB.save();
-        return { success: true, data, count: data?.length || 0 };
+        await Supa._pushLocalOnly('study_days', state.days, remote);
+        return { success: true, data: merged, count: merged.length };
       } catch(err) {
         return { success: false, error: err.message };
       }
@@ -226,9 +254,12 @@ const App = (() => {
         
         if (error) throw error;
         
-        state.tasks = data || [];
+        const remote = data || [];
+        const { merged } = Supa._mergeById(state.tasks, remote);
+        state.tasks = merged;
         DB.save();
-        return { success: true, data, count: data?.length || 0 };
+        await Supa._pushLocalOnly('study_tasks', state.tasks, remote);
+        return { success: true, data: merged, count: merged.length };
       } catch(err) {
         return { success: false, error: err.message };
       }
@@ -244,9 +275,12 @@ const App = (() => {
         
         if (error) throw error;
         
-        state.sessions = data || [];
+        const remote = data || [];
+        const { merged } = Supa._mergeById(state.sessions, remote);
+        state.sessions = merged;
         DB.save();
-        return { success: true, data, count: data?.length || 0 };
+        await Supa._pushLocalOnly('focus_sessions', state.sessions, remote);
+        return { success: true, data: merged, count: merged.length };
       } catch(err) {
         return { success: false, error: err.message };
       }
@@ -262,9 +296,33 @@ const App = (() => {
         
         if (error) throw error;
         
-        state.personalTasks = data || [];
+        const remote = data || [];
+        const { merged } = Supa._mergeById(state.personalTasks, remote);
+        state.personalTasks = merged;
         DB.save();
-        return { success: true, data, count: data?.length || 0 };
+        await Supa._pushLocalOnly('personal_tasks', state.personalTasks, remote);
+        return { success: true, data: merged, count: merged.length };
+      } catch(err) {
+        return { success: false, error: err.message };
+      }
+    },
+
+    async syncQuestionAnalytics() {
+      if (!Supa.client) return { success: false, error: 'Not connected' };
+      try {
+        const { data, error } = await Supa.client
+          .from('question_analytics')
+          .select('*')
+          .order('created_at');
+        
+        if (error) throw error;
+        
+        const remote = data || [];
+        const { merged } = Supa._mergeById(state.questionAnalytics, remote);
+        state.questionAnalytics = merged;
+        DB.save();
+        await Supa._pushLocalOnly('question_analytics', state.questionAnalytics, remote);
+        return { success: true, data: merged, count: merged.length };
       } catch(err) {
         return { success: false, error: err.message };
       }
@@ -1474,14 +1532,16 @@ const App = (() => {
 
     // Store per-question analytics
     if (session.mode === 'perQuestion' && session.questions.length > 0) {
-      state.questionAnalytics.push({
+      const qaRecord = {
         id: uid(),
         sessionId: record.id,
         subject: session.subject,
         topic: session.topic,
         date: todayStr(),
         questions: session.questions,
-      });
+        created_at: new Date().toISOString(),
+      };
+      state.questionAnalytics.push(qaRecord);
     }
 
     DB.save();
@@ -2017,18 +2077,20 @@ const App = (() => {
 
     showSupabaseStatus('Connected! Syncing data...', 'info');
 
-    const [daysResult, tasksResult, sessionsResult, personalResult] = await Promise.all([
+    const [daysResult, tasksResult, sessionsResult, personalResult, analyticsResult] = await Promise.all([
       Supa.syncDays(),
       Supa.syncTasks(),
       Supa.syncSessions(),
       Supa.syncPersonalTasks(),
+      Supa.syncQuestionAnalytics(),
     ]);
 
     const totalSynced = 
       (daysResult.count || 0) + 
       (tasksResult.count || 0) + 
       (sessionsResult.count || 0) +
-      (personalResult.count || 0);
+      (personalResult.count || 0) +
+      (analyticsResult.count || 0);
 
     if (totalSynced === 0) {
       showSupabaseStatus('Already Synced', 'info');
@@ -2234,6 +2296,17 @@ const App = (() => {
       }
     });
 
+    // Lifecycle handlers — persist state on app close / background
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'hidden') {
+        DB.save();
+      }
+    });
+
+    window.addEventListener('pagehide', function() {
+      DB.save();
+    });
+
     trySupabaseInit();
   }
 
@@ -2245,6 +2318,7 @@ const App = (() => {
       Supa.syncTasks();
       Supa.syncSessions();
       Supa.syncPersonalTasks();
+      Supa.syncQuestionAnalytics();
     } else {
       showSupabaseStatus('Supabase offline — data saved locally', 'info');
     }

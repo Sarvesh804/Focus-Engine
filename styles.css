@@ -1405,10 +1405,12 @@ input, textarea, select { font-family: var(--font-body); }
   flex-direction: column;
   gap: 10px;
   padding: 0 16px 14px;
+  align-items: center;
 }
 
 .personal-option-group {
   width: 100%;
+  text-align: center;
 }
 
 .personal-option-label {
@@ -1419,6 +1421,7 @@ input, textarea, select { font-family: var(--font-body); }
   color: var(--text-3);
   margin-bottom: 6px;
   display: block;
+  text-align: center;
 }
 
 .personal-chips {
@@ -1426,6 +1429,7 @@ input, textarea, select { font-family: var(--font-body); }
   gap: 6px;
   flex-wrap: nowrap;
   overflow-x: auto;
+  justify-content: center;
 }
 
 .personal-chip {
